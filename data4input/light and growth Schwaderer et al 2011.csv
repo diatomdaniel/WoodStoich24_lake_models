@@ -1,0 +1,57 @@
+﻿Species,Taxon,Size,umax,alpha,Iopt,Irradience refs,Size refs
+Ankistrodesmus sp.,greens,118,0.88,0.021,,this study,this study
+Chlamydomonas moewusii ,greens,374.68,1.38,0.021,84.9,Clegg et al. 2003,NAWQA
+Chlamydomonas reinhardtii,greens,113.1,0.82,0.008,204.9,this study,this study
+Chlorella pyrenoidosa,greens,14,2.48,0.045,87.9,Sorokin and Krauss 1962,Boraas 1983
+Chlorella sorokiniana,greens,12.85,0.79,0.03,161.5,Belkoura et al 1992,Benider et al. 2002; Roldán et al. 2006
+Chlorella vulgaris,greens,21.3,0.94,0.04,142.1,Dauta et al. 1990,Toepel et al. 2005
+Coelastrum cambricum,greens,268,0.51,0.007,198.1,Boumnich et al 1990,Finnish lakes
+Coelastrum mircroporum,greens,113,0.81,0.031,198.1,Bouterfas et al. 2002; Dauta 1982,Dauta 1982; Dryden and Vincent 1986
+Dictyosphaerium pulchellum,greens,140,0.73,0.018,204.5,Dauta 1982,Dauta 1982
+Haematococcus pluvialis,greens,"2,800.00",1.5,0.018,,Fan et al. 1994,Kobayashi et al. 2001
+Monoraphidium minutum,greens,21,0.87,0.006,123.9,Dauta 1982,Dauta 1982
+Oocystis sp.,greens,100,0.7,0.003,108.7,This study,Finnish lakes
+Pediastrum boryanum,greens,350,0.48,0.005,110.6,Dauta 1982,Dauta 1982
+Picocystis salinarum,greens,3.14,1.68,0.136,,Roesler et al 2002,Roesler et al 2002
+Scenedesmus crassus,greens,100,1.29,0.042,232,Dauta 1982; Derraz et al. 1995; Guerri et al. 1981,Dauta 1982
+Scenedesmus quadricauda,greens,107.41,0.79,0.019,214.7,Dauta 1982; Schlesinger and Shuter 1981; this study,Dauta 1982
+Selenastrum minutum,greens,97,1.05,0.012,169,Bouterfas et al. 2002; Schlesinger and Shuter 1981,this study
+Sphaerocystis schroeteri,greens,89,1,0.059,,Litchman 2000,Lehmann & Sandgren 1995; Sommer et al. 2003
+Chroomonas sp.,crypt,59,0.59,0.005,106.4,Gervais 1997,Epp 1996
+Cryptomonas cf. ovata,crypt,"1,865.00",0.59,0.007,191.7,this study,this study
+Cryptomonas erosa ,crypt,"1,857.00",0.39,0.023,233.8,this study,Finnish Lakes 
+Cryptomonas phaseolus,crypt,461.97,0.58,0.011,96.7,Gervais 1997,this study
+Cryptomonas rostratiformis,crypt,"4,344.00",0.78,0.005,,Gervais 1997,this study
+Cryptomonas sp. ,crypt,700,1.23,0.011,163.2,Ojala 1993,Ojala 1993
+Rhodomonas sp.,crypt,76.61,0.84,0.012,195.7,this study,this study
+Anabaena circinalis,cyano,216,0.83,0.019,,Mc Causland et al. 2006; Westwood and Ganf 2004,"Hawkins et al. 2005; Madgwick et al. 2006, Train and Rodriguez 1998"
+Anabaena cylindrica,cyano,30,0.46,0.034,37.5,Dauta 1982,Dauta 1982
+Anabaena flos-aquae,cyano,79,0.74,0.076,93.8,Foy et al. 1976; Lee and Rhee 1999; Litchman 2000; this study,Dryden and Vincent 1986; Lehmann & Sandgren 1995; Sommer et al. 2003
+Anabaena macrospora,cyano,166.7,0.49,0.014,238.3,Boumnich et al. 1990,this study
+Aphanizomenon flos-aquae,cyano,200.5,0.74,0.097,,Foy et al. 1976; Zevenboom et al. 1981,Lehmann & Sandgren 1995; Reynolds 1984
+Microcystis aeruginosa,cyano,19.22,0.7,0.031,,Zevenboom and Mur 1984; this study,Coles & Jones 2000;  Dryden and Vincent 1986; Foy and Gibson 1993; Nasselli-Flores and Barone 2003
+Limnothrix redekei,cyano,16,0.64,0.099,37.6,Foy 1983; Foy et al. 1976; Gibson and Foy 1983,this study
+Phormidium luridum,cyano,9.5,0.92,0.059,88.6,Litchman 2000,this study
+Planktothrix agardhii,cyano,196.26,0.64,0.071,66.9,Foy et al. 1976; Foy 1983; Nicklisch and Fietz 2001; Tonk et al 2005; Post et al 1985,this study
+Planktothrix rubescens,cyano,170.3,0.58,0.022,,Davis and Walsby 2002,this study
+Synechocystis limnetica,cyano,1.77,0.26,0.014,,Richardson et al. 2000,Belykh et al. 2006
+Synechocystis minima,cyano,1.8,0.6,0.043,103.3,Dauta et al. 1990,this study
+Cosmarium subprotumidum,desmid,"5,715.00",0.45,0.006,204.9,Bouterfas et al. 2002,Finnish Lakes 
+Staurastrum pingue,desmid,89,0.53,0.003,250.8,"Boumnich et al. 1990, Dauta et al. 1990",Finnish Lakes 
+Cocconeis placentula,diatoms,756.48,0.45,0.05,,Tuji 2000,NAWQA; Pongswat et al. 2004
+Cymbella tumida,diatoms,"2,944.08",0.28,0.015,90.9,Tuji 2000,NAWQA
+Cymbella turgidula,diatoms,868.51,0.12,0.013,,Tuji 2000,NAWQA
+Fragilaria bidens,diatoms,280,0.91,0.036,209.3,Dauta 1982,Dauta 1982
+Fragilaria crotonensis,diatoms,358.14,0.59,0.017,100.9,Boumnich et al. 1990; Dauta et al 1990; Hartig and Wallen 1986; Rhee and Gotham 1981,Madgwick et al. 2006; NAWQA
+Fragilaria mesolepta,diatoms,233,0.4,0.062,,Tuji 2000,this study
+Fragilaria rumpens,diatoms,352.94,0.58,0.007,210,Tuji 2000,Grover 1989
+Fragilaria vaucheriae,diatoms,216.74,0.39,0.033,167.8,Tuji 2000,NAWQA
+Gomphonema quadripunctatum,diatoms,457,0.09,0.006,77.4,Tuji 2000,this study
+Gomphonema truncatum,diatoms,714,0.17,0.01,178.2,Tuji 2000,NAWQA
+Melosira varians,diatoms,"5,207.06",0.46,0.077,,Tuji 2000,"Lavoie 2006, NAWQA"
+Nitzschia gandersheimiensis,diatoms,352,1.27,0.011,182.3,Tuji 2000,this study
+Nitzschia sp.,diatoms,352,1.5,0.016,,Litchman 2000,this study
+Stephanodiscus neoastraea,diatoms,"8,000.00",1.06,0.042,60.4,Nicklisch and Fietz 2001,Huber and Gaedke 2006
+Synedra sp. cf scotica,diatoms,313,0.29,0.086,,Tuji 2000,this study
+Synedra ulna,diatoms,"5,720.00",0.63,0.009,,Tuji 2000,NAWQA
+Ceratium furcoides ,dino,"24,292.00",0.22,0.004,60,Clegg et al 2003,Huber and Gaedke 2006 

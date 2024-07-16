@@ -1,0 +1,621 @@
+---
+title: "Sensitivity analysis model parameters"
+author: "Daniel Gschwentner"
+date: "2024-07-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+knitr::opts_chunk$set(include = F)
+```
+
+### Notes
+
+Somehow everything revolves around N:P of 16 even when using average phytoplankton stoichiometry... there seem to be shifts in sensitivity depending on whether N or P limitation prevails.
+
+Much greater changes to baseline in Michaelis-Menten model compared to Droop model –\> luxury uptake allows for decoupling of growth and resource supply –\> makes model less sensitive? provides buffering capacity?!
+
+## Overview
+
+Code to perform sensitivity analysis of algal physiology parameters for Michaelis-Menten and Droop models.
+
+Models are run across TN and TP inflow gradients of 100 - 1000 ug L^-1^ and 10 - 500 ug L^-1^ respectively to establish baselines (500 timesteps). Light is held constant at I~0~ = 400 (umoles m^-2^ s^-1^ ). Algal physiology parameters are then varied by +/-10% to evaluate how sensitive C-acquisition is to changes in physiology. **Note, that I haven't performed a sensitivity analysis for umax or K~Light~ as these variables use fundamentally different units than the nutrient/stoichiometry parameters. When included umax appears to be the most influential variable and obscures variation in the other variables. Can easily include umax in the future if folks would like**. In addition, sensitivity of cellular N/P to changes in algal physiology is determined for the Droop model.
+
+## Setup
+
+```{r packages, echo = F, message=F, warning=F, results = "hide"}
+
+pck <- c("deSolve", "tidyverse", "cowplot", "ggsci")
+lapply(pck, require, character.only = T)
+theme_set(theme_cowplot() + theme(legend.justification = "center"))
+# load ODE models 
+# saved in external files for convenience
+# Michalis-Menten model
+source("models/mich_single.R") # michaelis menten kinetics, one algae species; model 1 in Carly's framework
+# Droop model
+source("models/droop_single.R") # droop model, one algae species; model 3 in Carly's framework
+```
+
+For the models I am using the average parameter values from the table below. These parameters are from [Edwards et al., 2016](https://figshare.com/articles/dataset/Data_Paper_Data_Paper/3562857?file=5635515).
+
+```{r load traits, echo = F}
+# trait data
+# median values
+traits <- read_csv("data4input/phyto_traits4models_21June2024.csv")[,-1]
+knitr::kable(traits, caption = "Trait parameters")
+
+```
+
+### Model setup
+
+```{r create grid of nutrient inflow scenarios}
+
+# timesteps
+times <- 1:500
+# loads
+loads <- expand.grid(Pin = seq(10, 500,50 ),
+                                Nin = seq(10,1500 , 100))
+
+```
+
+```{r michaelis-menten model setup}
+
+params.mich <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  
+  # light parameters
+  I0 = 400, # incident light
+  kBg= 0.1,		# background light attenuation (m-1)/(g C m-3); 0.1-5.6 from Jager & Diehl
+  kA=0.0003, # algal light attenuation (m-1)/(mg C m-3); 0.0003 from Jager & Diehl
+
+  # algae physiology parameters
+  umax1 = traits[12, "average"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KLight = traits[11, "average"], # light half sat constant 
+  KP1 = traits[2, "average"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = traits[6, "average"], # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = traits[1, "average"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  QN1 = traits[5, "average"] # algae cell N quota in mg N mg^-1 C^-1 
+)
+names(params.mich) <- c("SA", "zmix", "Pin", "Nin", "I0", 
+                        "kBg", "kA", "umax1", "lA", "v", 
+                        "KLight", "KP1",  "QP1", "KN1",  "QN1")
+names(params.mich)
+params.mich <- unlist(params.mich)
+
+```
+
+```{r droop model parameter setup}
+params.droop <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # light parameters
+  I0 = 400, # surface light
+  kBg= 0.1,		# background light attenuation (m-1)/(g C m-3); 0.1-5.6 from Jager & Diehl
+  kA=0.0003, # algal light attenuation (m-1)/(mg C m-3); 0.0003 from Jager & Diehl
+ 
+  # algae physiology parameters
+  umax1 = traits[12, "average"],
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KLight = traits[11, "average"], # light half sat constant 
+  KP1 = traits[2, "average"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  minQP1 = traits[6, "average"], # algae cell P quota in mg P mg^-1 C^-1 f
+  upP1 = traits[4, "average"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  KN1 = traits[1, "average"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  minQN1 = traits[5, "average"], # algae cell N quota in mg N mg^-1 C^-1 f
+  upN1 = traits[3, "average"] # max uptake rate N per day in mg N mg C^-1 day^-1 
+)
+
+
+
+names(params.droop) <- c("SA", "zmix", "Pin", "Nin", "I0", "kBg", "kA",
+                             "umax1", "lA", "v", "KLight", 
+                             "KP1", "minQP1", "upP1", "KN1",
+                             "minQN1", "upN1")
+names(params.droop)
+params.droop <- unlist(params.droop)
+```
+
+## Run baseline models
+
+### Michaelis Menten model
+
+```{r michaelis menten baselines}
+
+baselines.mich <- lapply(1:nrow(loads), function(i) {
+  params.mich["Pin"] = loads[i, "Pin"]
+  params.mich["Nin"] = loads[i, "Nin"]
+  y <- c("A1" = 100,
+         "P" = loads[i, "Pin"],
+         "N" = loads[i, "Nin"])
+  
+  run <- ode(y, times, parms = params.mich, func = mich.single)
+  return(run[max(times),])
+  
+})
+
+baselines.mich <- do.call(rbind, baselines.mich)
+baselines.mich <- as_data_frame(baselines.mich)
+baselines.mich$Pin <- loads$Pin
+baselines.mich$Nin <- loads$Nin
+
+```
+
+### Droop models
+
+```{r}
+baselines.droop <- lapply(1:nrow(loads), function(i) {
+  params.droop["Pin"] = loads[i, "Pin"]
+  params.droop["Nin"] = loads[i, "Nin"]
+  y <- c("A1" = 100,
+         "P" = loads[i, "Pin"],
+         "N" = loads[i, "Nin"],
+         "QP1" = 0.015,
+         "QN1" = 0.1)
+  
+  run <- ode(y, times, parms = params.droop, func = droop.single)
+  return(run[max(times),])
+  
+})
+
+baselines.droop <- do.call(rbind, baselines.droop)
+baselines.droop <- as_data_frame(baselines.droop)
+baselines.droop$Pin <- loads$Pin
+baselines.droop$Nin <- loads$Nin
+
+
+```
+
+## Sensitivity analysis
+
+### Michaelis-Menten models
+
+Increase and decrease algal physiology parameters by +/-10% and store the output. Calculate the change relative to baseline conditions across TN and TP loads.
+
+Code chunk below varies parameters by +10%
+
+```{r michales menten pt1}
+# iterate over parameters
+sim.mich.1 <- lapply(list("KP1","QP1", "KN1", "QN1"), function(f) {
+  params.mich[f] <- params.mich[f] * 1.1
+  # iterate over loads
+  sim.1 <- lapply(1:nrow(loads), function(i) {
+    params.mich["Pin"] = loads[i, "Pin"]
+    params.mich["Nin"] = loads[i, "Nin"]
+    y <- c("A1" = 100, "P" = loads[i, "Pin"], "N" = loads[i, "Nin"])
+    run <- ode(y, times, parms = params.mich, func = mich.single)
+    return(run[max(times),])
+  })
+  # add meta-data
+  sim.1 <- do.call(rbind, sim.1)
+  sim.1 <- as_data_frame(sim.1)
+  sim.1$Pin <- loads$Pin
+  sim.1$Nin <- loads$Nin
+  # add info on the parameter that was varied
+  sim.1$param <- f
+  return(sim.1)
+})
+sim.mich.1 <- do.call(rbind, sim.mich.1)
+sim.mich.1$scenario <- "+10%"
+
+
+```
+
+Code chunk below varies parameters by -10%\
+(there is probably a more elegant way to do this but this simple approach works for now.
+
+```{r michales menten pt2}
+# iterate over parameters
+sim.mich.2 <- lapply(list("KP1", "QP1", "KN1", "QN1"), function(f) {
+  params.mich[f] <- params.mich[f] * 0.9
+  # iterate over loads
+  sim.1 <- lapply(1:nrow(loads), function(i) {
+    params.mich["Pin"] = loads[i, "Pin"]
+    params.mich["Nin"] = loads[i, "Nin"]
+    y <- c("A1" = 100, "P" = loads[i, "Pin"], "N" = loads[i, "Nin"])
+    run <- ode(y, times, parms = params.mich, func = mich.single)
+    return(run[max(times),])
+  })
+  # add meta-data
+  sim.1 <- do.call(rbind, sim.1)
+  sim.1 <- as_data_frame(sim.1)
+  sim.1$Pin <- loads$Pin
+  sim.1$Nin <- loads$Nin
+  sim.1$param <- f
+  return(sim.1)
+})
+sim.mich.2 <- do.call(rbind, sim.mich.2)
+sim.mich.2$scenario <- "-10%"
+
+
+```
+
+The code chunk below re-formats the data and merges the simulations with the baseline runs. I've calculated the relative change from the simulation to the baseline for a given TN and TP load as
+
+$$
+\Delta_{biomass} = \frac{sensitivity_i}{baseline}
+$$
+
+where $\Delta_{biomass}$ is the relative change in biomass, baseline is the baseline biomass, and sensitivity~i~ is the biomass for a given parameter in the sensitivity analysis.
+
+In addition, I calculated which parameter results in the maximum change in biomass relative to the baseline. It is important to note that this doesn't tell us the direction of change just the magnitude of change.
+
+```{r merge data sets and fix names}
+
+# merge scenarios
+sim.mich <- rbind(sim.mich.1, sim.mich.2)
+colnames(sim.mich) <- c("time", "A1.sim", "P.sim", "N.sim",
+                        "Pin", "Nin", "param", "scenario")
+sim.mich <- merge(sim.mich, baselines.mich, 
+                  by = c("Pin", "Nin"))
+# calculate percent change relative to baseline
+sim.mich$change2baseline <- sim.mich$A1.sim/sim.mich$A1
+
+# determine min/max change
+# note that this code doesn't tell us about direction of change, only the magnitude
+sim.mich.metrics <- sim.mich %>%
+  mutate(change2baseline2 =  abs(change2baseline - 1)) %>% # minus 1 is needed to calculate deviation from baseline which is unity; take absolute value to find most influential parameter
+  pivot_wider(id_cols = c(Pin, Nin, scenario),
+              names_from = param, 
+              values_from = change2baseline2) 
+colnames(sim.mich.metrics)
+sim.mich.metrics[,-c(1, 2, 3)] <- apply(sim.mich.metrics[,-c(1, 2, 3)], 2, abs)
+sim.mich.metrics$max.change <- colnames(sim.mich.metrics[-c(1,2,3)])[apply(sim.mich.metrics[,-c(1,2,3)], 1, which.max)]
+
+
+```
+
+### Droop models
+
+Increase and decrease algal physiology parameters by +/-10% and store the output. Calculate the change relative to baseline conditions across TN and TP loads.
+
+```{r droop pt 1}
+# iterate over parameters
+sim.droop.1 <- lapply(list("KP1","KN1", "upP1", "upN1", 
+                           "minQP1", "minQN1"), function(f) {
+  params.droop[f] <- params.droop[f] * 1.1
+  # iterate over loads
+  sim.1 <- lapply(1:nrow(loads), function(i) {
+    params.droop["Pin"] = loads[i, "Pin"]
+    params.droop["Nin"] = loads[i, "Nin"]
+    y <- c("A1" = 100, "P" = loads[i, "Pin"], "N" = loads[i, "Nin"],
+           "QP1" = 0.015,"QN1" = 0.1)
+    run <- ode(y, times, parms = params.droop, func = droop.single)
+    return(run[max(times),])
+  })
+  # add meta-data
+  sim.1 <- do.call(rbind, sim.1)
+  sim.1 <- as_data_frame(sim.1)
+  sim.1$Pin <- loads$Pin
+  sim.1$Nin <- loads$Nin
+  # add info on the parameter that was varied
+  sim.1$param <- f
+  return(sim.1)
+})
+sim.droop.1 <- do.call(rbind, sim.droop.1)
+sim.droop.1$scenario <- "+10%"
+
+```
+
+```{r droop pt2}
+
+# iterate over parameters
+sim.droop.2 <- lapply(list("KP1","KN1", "upP1", "upN1", 
+                           "minQP1", "minQN1"), function(f) {
+  params.droop[f] <- params.droop[f] * 0.9
+  # iterate over loads
+  sim.1 <- lapply(1:nrow(loads), function(i) {
+    params.droop["Pin"] = loads[i, "Pin"]
+    params.droop["Nin"] = loads[i, "Nin"]
+    y <- c("A1" = 100, "P" = loads[i, "Pin"], "N" = loads[i, "Nin"],
+           "QP1" = 0.015,"QN1" = 0.1)
+    run <- ode(y, times, parms = params.droop, func = droop.single)
+    return(run[max(times),])
+  })
+  # add meta-data
+  sim.1 <- do.call(rbind, sim.1)
+  sim.1 <- as_data_frame(sim.1)
+  sim.1$Pin <- loads$Pin
+  sim.1$Nin <- loads$Nin
+  # add info on the parameter that was varied
+  sim.1$param <- f
+  return(sim.1)
+})
+sim.droop.2 <- do.call(rbind, sim.droop.2)
+sim.droop.2$scenario <- "-10%"
+
+```
+
+The code chunk below re-formats the data and merges the simulations with the baseline runs. I've calculated the relative change from the simulation to the baseline for a given TN and TP load as
+
+$$ \Delta_{biomass} = \frac{sensitivity_i}{baseline} $$
+
+where $\Delta_{biomass}$ is the relative change in biomass, baseline is the baseline biomass, and sensitivity~i~ is the biomass for a given parameter in the sensitivity analysis.
+
+In addition, I calculated which parameter results in the maximum change in biomass relative to the baseline. It is important to note that this doesn't tell us the direction of change just the magnitude of change.
+
+```{r merge data sets and fix names droop model}
+# merge scenarios
+sim.droop <- rbind(sim.droop.1, sim.droop.2)
+colnames(sim.droop) <- c("time", "A1.sim", "P.sim", "N.sim",
+                        "QP.sim", "QN.sim", "Pin", "Nin", 
+                        "param", "scenario")
+sim.droop <- merge(sim.droop, baselines.droop, 
+                  by = c("Pin", "Nin"))
+# calculate percent change relative to baseline
+# for algal biomass
+sim.droop$change2baseline.A <- sim.droop$A1.sim/sim.droop$A1
+# for cell P content
+sim.droop$change2baseline.QP <- sim.droop$QP.sim/sim.droop$QP1
+# for cell N content
+sim.droop$change2baseline.QN <- sim.droop$QN.sim/sim.droop$QN1
+
+# determine min/max change
+# note that this code doesn't tell us about direction of change, only the magnitude
+sim.droop.metrics.A <- sim.droop %>% 
+  mutate(change2baseline2 =  abs(change2baseline.A - 1)) %>% # minus 1 is needed to calculate deviation from baseline which is unity; take absolute value to find most influential parameter
+  pivot_wider(id_cols = c(Pin, Nin, scenario),
+              names_from = param, 
+              values_from = change2baseline2)
+colnames(sim.droop.metrics.A)
+sim.droop.metrics.A[,-c(1, 2, 3)] <- apply(sim.droop.metrics.A[,-c(1, 2, 3)], 2, abs)
+sim.droop.metrics.A$max.change <- colnames(sim.droop.metrics.A[-c(1,2,3)])[apply(sim.droop.metrics.A[,-c(1,2,3)], 1, which.max)]
+
+# for QP
+sim.droop.metrics.QP <- sim.droop %>% 
+  mutate(change2baseline2 =  abs(change2baseline.QP - 1)) %>% # minus 1 is needed to calculate deviation from baseline which is unity; take absolute value to find most influential parameter
+  pivot_wider(id_cols = c(Pin, Nin, scenario),
+              names_from = param, 
+              values_from = change2baseline2)
+colnames(sim.droop.metrics.QP)
+sim.droop.metrics.QP[,-c(1, 2, 3)] <- apply(sim.droop.metrics.QP[,-c(1, 2, 3)], 2, abs)
+sim.droop.metrics.QP$max.change <- colnames(sim.droop.metrics.QP[-c(1,2,3)])[apply(sim.droop.metrics.QP[,-c(1,2,3)], 1, which.max)]
+
+# for QN
+sim.droop.metrics.QN <- sim.droop %>%
+  mutate(change2baseline2 =  abs(change2baseline.QN - 1)) %>% # minus 1 is needed to calculate deviation from baseline which is unity; take absolute value to find most influential parameter
+  pivot_wider(id_cols = c(Pin, Nin, scenario),
+              names_from = param, 
+              values_from = change2baseline2)
+colnames(sim.droop.metrics.QN)
+sim.droop.metrics.QN[,-c(1, 2, 3)] <- apply(sim.droop.metrics.QN[,-c(1, 2, 3)], 2, abs)
+sim.droop.metrics.QN$max.change <- colnames(sim.droop.metrics.QN[-c(1,2,3)])[apply(sim.droop.metrics.QN[,-c(1,2,3)], 1, which.max)]
+
+```
+
+## Summary
+
+### Michaelis-Menten
+
+```{r}
+
+mich.menten.1 <- sim.mich %>%
+  ggplot(aes(Pin, Nin, fill = change2baseline)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16 * 14.007)/30.974,
+              lwd = 1, lty = "dashed", col = "white") + 
+  facet_grid(scenario ~ param) + 
+  scale_fill_viridis_c(option = "H", breaks = c(1, 5, 10, 15, 20)) + 
+  scale_x_continuous(breaks = c(10, 250, 500)) + 
+  labs(x = "P in ppm", y = "N in ppm", fill = "relative change")
+
+mich.menten.2 <- sim.mich.metrics %>%
+  ggplot(aes(Pin, Nin, fill = max.change)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16 * 14.007)/30.974,
+              lwd = 1, lty = "dashed", col = "white") + 
+  facet_wrap(scenario~.,ncol = 2) + 
+  scale_fill_viridis_d(option = "H") + 
+  scale_x_continuous(breaks = c(10, 250, 500)) + 
+  labs(x = "P in ppm", y = "N in ppm", fill = "max. change")
+
+mich.menten.3 <- sim.mich %>%
+    ggplot(aes(param, change2baseline)) + 
+    geom_violin() + 
+    facet_wrap(scenario~., scales = "free") + 
+    labs(x = NULL, y = "relative change")
+
+
+```
+
+-   Decreasing K~N~ and K~P~ by 10% under N and P limited conditions results in large increases in algal biomass. Interestingly, the effect of changing K~N~ or K~P~ does not only depend on the N/P load but on the P/N load as well.
+
+    -   For K~N~, the effect of decreasing K~N~ is largest at high TP loads. For K~P~, the effect is largest at lowish N loads but I suspect this is the result of imbalanced N:P supply.
+
+-   The color scale makes it hard to tell but there is little effect of changing any of the parameters at high nutrient loads. Relative changes for K~N~, K~P~, Q~N~ and Q~P~ are very close to 1, suggesting limited difference compared to the baseline.
+
+    -   However, Q~N~ and Q~P~ are the most influential parameters on algal biomass (see figure below)
+
+-   Increasing K~N~ and K~P~ by 10% results in a predictable decrease in algal biomass relative to the baseline under N and P limited conditions. This makes intuitive sense as reduced affinity for a nutrient should limit growth under limiting conditions.
+
+-   Increasing Q~N~ and Q~P~ does not appear to do very much but there is a small negative effect of increasing Q~N~ under N-limited conditions and same for Q~P~.
+
+    -   I suspect the influence of Q~N~ and Q~P~ is muted because these parameters only affect nutrient supply/growth indirectly in the model.
+
+```{r, dpi=500, fig.width=7, fig.height = 3, include=T}
+mich.menten.1 
+
+```
+
+-   Increasing or decreasing parameters by 10% results in the same patterns of which parameter is most influential...
+
+-   Under N or P limited conditions, K~N~ and K~P~ are the most influential parameters. From the figures, these appear to be N and P loads of 100 and 50 ug L^-1^ respectively.
+
+-   Under non-limiting conditions, Q~N~ and Q~P~ are the most influential parameters. There is a very strong stoichiometric component here: when N:P of the supply \> 16, Q~P~ is the most influential parameter and vice versa for Q~N~.
+
+    -   Not sure if this is an actual result or a feature that is implicit to the model. If it is a result, that is super interesting as it suggests there is something fundamentally *true* or important about Redfield ratio which acts a critical threshold for which factors control biomass gain.
+
+    -   Carly, does this fit with your control points work?!?!
+
+```{r, dpi=500, fig.width=5, fig.height=3, fig.width = 8, include=T}
+mich.menten.2
+
+```
+
+```{r, dpi = 500, fig.width=7, fig.height=3}
+#mich.menten.3
+
+```
+
+#### Conclusion for Michaelis-Menten models
+
+Half-saturation constants for N and P uptake are the most influential parameters in the model with the static algal stoichiometry. This fits with the competition models I ran as the species with the lowest K~N~ and K~P~ win under N and P limited conditions.
+
+### Droop models
+
+```{r }
+droop.A <- sim.droop %>%
+  ggplot(aes(Pin, Nin, fill = change2baseline.A)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16 * 14.007)/30.974,
+              lwd = 1, lty = "dashed", col = "white") + 
+  facet_grid(scenario ~ param) + 
+  scale_fill_viridis_c(option = "H", breaks = c(1, 3, 5, 7)) + 
+  scale_x_continuous(breaks = c(10, 250, 500)) + 
+  labs(x = "P in ppm", y = "N in ppm", fill = "relative change")
+
+droop.QP <- sim.droop %>%
+  ggplot(aes(Pin, Nin, fill = change2baseline.QP)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16 * 14.007)/30.974,
+              lwd = 1, lty = "dashed", col = "white") + 
+  facet_grid(scenario ~ param) + 
+  scale_fill_viridis_c(option = "H", breaks = c(0.5, 1, 1.5)) + 
+  scale_x_continuous(breaks = c(10, 250, 500)) + 
+  labs(x = "P in ppm", y = "N in ppm", fill = "relative change")
+
+droop.QN <- sim.droop %>%
+  ggplot(aes(Pin, Nin, fill = change2baseline.QN)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16 * 14.007)/30.974,
+              lwd = 1, lty = "dashed", col = "white") + 
+  facet_grid(scenario ~ param) + 
+  scale_fill_viridis_c(option = "H", breaks = c(1, 3, 5, 7)) + 
+  scale_x_continuous(breaks = c(10, 250, 500)) + 
+  labs(x = "P in ppm", y = "N in ppm", fill = "relative change")
+
+droop.max.A <- sim.droop.metrics.A %>%
+  ggplot(aes(Pin, Nin, fill = max.change)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16 * 14.007)/30.974,
+              lwd = 1, lty = "dashed", col = "white") + 
+  facet_wrap(scenario~., ncol = 2) + 
+  scale_fill_viridis_d(option = "H") + 
+  scale_x_continuous(breaks = c(10, 250, 500)) + 
+  labs(x = "P in ppm", y = "N in ppm", fill = "max. change")
+
+droop.max.QP <- sim.droop.metrics.QP %>%
+  ggplot(aes(Pin, Nin, fill = max.change)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16 * 14.007)/30.974,
+              lwd = 1, lty = "dashed", col = "white") + 
+  facet_grid(scenario~.) + 
+  facet_wrap(scenario~., ncol = 2) + 
+  scale_fill_viridis_d(option = "H") + 
+  scale_x_continuous(breaks = c(10, 250, 500)) + 
+  labs(x = "P in ppm", y = "N in ppm", fill = "max. change")
+
+droop.max.QN <- sim.droop.metrics.QN %>%
+  ggplot(aes(Pin, Nin, fill = max.change)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16 * 14.007)/30.974,
+              lwd = 1, lty = "dashed", col = "white") + 
+  facet_wrap(scenario~., ncol = 2) + 
+  scale_fill_viridis_d(option = "H") + 
+  scale_x_continuous(breaks = c(10, 250, 500)) + 
+  labs(x = "P in ppm", y = "N in ppm", fill = "max. change")
+
+```
+
+#### Algal biomass
+
+-   Algal biomass is more sensitive to changes in N parameters than P parameters in Droop model
+
+    -   Any particular reason for this? Maybe because parameter values for N are much larger than those for P? –\> see table at beginning of document
+
+-   Decreasing K~N~ and minQ~N~ under N limited conditions increases biomass although the effect is larger for minQ~N~ than for K~N~. In contrast, decreasing N uptake rates decreases algal biomass relative to the control.
+
+-   The color scale makes it difficult to see but decreasing minQ~N~ and minQ~P~ under N and P limited conditions results in small increases in algal biomass across the TN and TP load gradients.
+
+-   Changes to K~P~, minQ~P~ and P uptake rate have small/no impact on algal biomass compared to changes in N parameters.
+
+-   Increasing K~N~ and minQ~N~ decreases algal biomass, increasing N uptake rate increases algal biomass under N limitation.
+
+```{r dpi=500, fig.width=8, fig.height = 3, include=T}
+
+droop.A
+
+```
+
+-   The figure below confirms the importance of N parameters in the Droop model. However, ther is again a stoichiometric component.
+
+    -   Under N limited conditions minQ~N~ is more influential while minQ~P~ under P limited conditions.
+
+    -   Under strong N limitation, N uptake rates are more important than minQ~N~ or K~N~
+
+```{r dpi = 500, fig.width=7, fig.height=3, include=T}
+
+droop.max.A
+
+```
+
+#### Cellular P content
+
+Much more stuff going on here...let's try to unpack all of this...
+
+-   Decreasing K~N~ and minQ~N~ decreases Q~P~. For K~N~ this is only true under strong N limitation but minQ~N~ has an effect across all TN loads. A decrease in N uptake velocity increases Q~P~ when N is limiting. Decreasing K~P~ under strong P limitation increases Q~P~. In contrast, decreasing minQ~P~ and P uptake velocity decreases Q~P~.
+
+-   Increasing K~N~ under strong N limitation increases Q~P~ while the opposite holds for K~P~.
+
+-   Increases in minQ~N~ under N limited conditions increases Q~P~ whereas Q~P~ increases with minQ~P~ under P limitation. Higher uptake velocities for N and P decrease and increase Q~P~ respectively.
+
+```{r dpi=500, fig.width=8, fig.height = 3, include=T}
+
+droop.QP
+```
+
+-   Similar to changes in algal biomass, minQ~N~ and minQ~P~ are the most important parameters determining Q~P~ content. Again, minQ~P~ is the most influential under P limitation and vice versa for minQ~N~
+
+-   Under strong N limitation, P uptake velocity is the most important parameter –\> indicates luxury uptake of P!
+
+```{r dpi = 500, fig.width=7, fig.height=3, include=T}
+
+droop.max.QP
+
+```
+
+#### Cellular N
+
+-   Decreasing K~N~ increases Q~N~ under strong N and P limitation although the effect is greater under N than P limitation. Changes in K~P~ don't affect Q~N~. The inverse applies to to N and P uptake velocities.
+
+-   Decreasing minQ~N~ and minQ~P~ decrease Q~N~ under N and P limitation respectively.
+
+-   Increasing K~N~ decreases Q~N~ under strong nutrient limitation while increasing N uptake velocity increases cellular N content. Increases in Q~N~ are more pronounced under P than N limitation.
+
+-   Increasing minQ~N~ and minQ~P~ increase Q~N~ under N and P limited conditions.
+
+```{r dpi=500, fig.width=8, fig.height = 3, include=T}
+
+droop.QN
+
+```
+
+-   Pretty much inverse of trends for Q~P~.
+
+-   Influence of uptake N velocity under strong P limitation mirrors the effect of P uptake velocity on Q~P~. Again, I think this points to luxury uptake.
+
+```{r dpi = 500, fig.width=7, fig.height=3, include=T}
+
+droop.max.QN
+```

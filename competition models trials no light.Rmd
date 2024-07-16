@@ -1,0 +1,792 @@
+---
+title: "Competition simulations without light"
+author: "Daniel Gschwentner"
+date: "2024-06-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Notes for modelling/to-do
+
+-   Remove light from models, run simulation and evaluate competition
+
+    -   Removal of light allows diatoms to compete. Diatoms have highest K~Light~ and are therefore the least competitive taxa for light.
+    -   You should re-run all simulations with and without light to evaluate how light availability influences competition. You'll probably find that the high K~Light~ completely excludes diatoms, and that diatoms will dominate in Droop model instead of green algae.
+
+-   Include light as gradient in model (i.e. different light environments). Run models and try to plot results across 3 axes or as surface/contour. You could also facet across light to create pseudo-3rd axis.
+
+    -   Appears to be a N-P-light trade-off in the models: if light is low, cyanos win because they have the lowest K~Light~; increasing light allows for green algae to compete and dominate; interestingly, when light is included in the models, diatoms never dominate.
+
+-   Should really rename the Michaelis Menten models to Monod model. This will create quite a bit of confusion if you don't.
+
+## Setup, load data and packages
+
+```{r set up and packages, message=F, warning=F, results = "hide"}
+
+pck <- c("deSolve", "tidyverse", "cowplot", "ggsci")
+lapply(pck, require, character.only = T)
+theme_set(theme_cowplot() + theme(legend.justification = "center"))
+# load ODE models 
+# saved in external files for convenience
+#mich.singe
+source("models/mich_single.R") # michaelis menten kinetics, one algae species; model 1 in Carly's framework
+# mich.triple 
+source("models/mich_trip_noLight.R")# michaelis menten kinites, three algae species; model 2 in Carly's framework
+# droop.single
+source("models/droop_single.R") # droop model, one algae species; model 3 in Carly's framework
+# droop.tripl
+source("models/droop_trip_noLight.R") # droop model, three algae species; model 4 in Carly's framework
+
+```
+
+```{r load data sets, message=F, warning=F, results="hide"}
+# TN and TP load data
+# corman2023 <- read_csv("Corman2023 metabolism result.csv")
+# range(corman2023$TN_load, na.rm = T)
+# hist(corman2023$TN_load)
+# range(corman2023$TP_load, na.rm = T)
+# hist(corman2023$TP_load)
+
+# trait data
+# median values
+traits <- read_csv("data4input/phyto_traits4models_21June2024.csv")[,-1]
+# quantile 25
+traitsq25 <- read_csv("data4input/phyto_traits4models_21June2024_25thquantile.csv")[,-1]
+# quantile 75
+traitsq75 <- read_csv("data4input/phyto_traits4models_21June2024_75thquantile.csv")[,-1]
+```
+
+# Phytoplankton competition simulations
+
+This document contains code to run lake ecosystem models with 3-competing algal species (diatoms, green algae, cyanobacteria). Phytoplankton trait data was summarized from publicly availabe data sets previously by DG (see ).
+
+### Model simulations
+
+Two models are compared:
+
+1.  Model with static cell stoichiometry and Michaelis-Menten uptake kinetics.
+
+    1.  Requires half saturation constants for light, N and P; minimum cellular N and P quotas.
+
+2.  Model with flexible cell stoichiometry following Droop formulation.
+
+    1.  Requires half saturation constants for light, N and P; minimum cellular N and P quotas; maximum uptake rates for N and P.
+
+The models are run across TN and TP inflow gradients of 100 - 10^6^ ug L^-1^ N and 100 - 500,000 ug L^-1^ P respectively. Inflow loads are based on data from [Corman et al. 2023](). The models are run for 1,000 timesteps and the dominate algal taxa is returned. This gives us an idea of which algal taxa dominate under which environmental conditions.
+
+### Phytoplankton traits
+
+The phytoplankton traits used to parameterize the models are shown in the table below.
+
+```{r phyto traits overview}
+
+knitr::kable(traits, caption = "Median trait value")
+knitr::kable(traitsq25, caption = "25th quantile trait value")
+knitr::kable(traitsq75, caption = "75th quantile trait value")
+
+```
+
+The following set-up is used
+
+-   Species 1 = diatoms
+
+-   Species 2 = green algae
+
+-   Species 3 = cyanobacteria
+
+### Sensitivity analysis
+
+To get around the issue of having to simultaneously vary trait parameters for 3 species, I decided to do a pseudo-sensitivity analysis. I ran the models with median trait values as well as the 25^th^ and 75^th^ quantile for each trait for each taxon. This approach should incorporate a wider range of the "trait-space" and of competitive outcomes. If we see similar results across all simulations, it suggests that certain taxa are on average more competitive than other taxa. Carly is going to work on a sensitivity analysis with one-single taxa to evaluate which traits are the most sensitive/important.
+
+# Model runs
+
+Set-up model parameters
+
+```{r model scenarios}
+# timesteps
+times <- 1:500
+# loads
+# loads
+loads <- expand.grid(Pin = seq(10, 500,10 ),
+                                Nin = seq(10,1000 , 50))
+
+```
+
+## Median trait values
+
+### Michaelis-Menten/static stoichiometry
+
+```{r mich menten parameters}
+
+params.mich.trip <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  
+  # light parameters
+  I0 = NA, # incident light
+  kBg= 0.1,		# background light attenuation (m-1)/(g C m-3); 0.1-5.6 from Jager & Diehl
+  kA=0.0003, # algal light attenuation (m-1)/(mg C m-3); 0.0003 from Jager & Diehl
+
+  # algae physiology parameters
+  umax1 = traits[12, "diatoms"],
+  umax2 = traits[12, "greens"],
+  umax3 = traits[12, "cyanos"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KLight1 = traits[11, "diatoms"], # light half sat constant 
+  KLight2 = traits[11, "greens"], # light half sat constant 
+  KLight3 = traits[11, "cyanos"], # light half sat constant
+  KP1 = traits[2, "diatoms"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  KP2 = traits[2, "greens"] * 1000,
+  KP3 = traits[2, "cyanos"] * 1000,
+  QP1 = traits[6, "diatoms"], # algae cell P quota in mg P mg^-1 C^-1 
+  QP2 = traits[6, "greens"],
+  QP3 = traits[6, "cyanos"],
+  KN1 = traits[1, "diatoms"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  KN2 = traits[1, "greens"] * 1000,
+  KN3 = traits[1, "cyanos"] * 1000,
+  QN1 = traits[5, "diatoms"], # algae cell N quota in mg N mg^-1 C^-1 
+  QN2 = traits[5, "greens"],
+  QN3 = traits[5, "cyanos"]
+)
+names(params.mich.trip) <- c("SA", "zmix", "Pin", "Nin", "I0", "kBg", "kA",
+                             "umax1", "umax2", "umax3", "lA", "v", 
+                             "KLight1", "KLight2", "KLight3",
+                             "KP1", "KP2", "KP3", "QP1", "QP2", "QP3",
+                             "KN1", "KN2", "KN3", "QN1", "QN2", "QN3")
+names(params.mich.trip)
+params.mich.trip <- unlist(params.mich.trip)
+traits
+```
+
+```{r run simulations for Michaelis Menten model}
+
+sim.mich.menten.triple <- lapply(1:nrow(loads), function(i) {
+  params.mich.trip["Pin"] = loads[i, "Pin"]
+  params.mich.trip["Nin"] = loads[i, "Nin"]
+  y <- c("A1" = 100,
+         "A2" = 100,
+         "A3" = 100,
+         "P" = loads[i, "Pin"],
+         "N" = loads[i, "Nin"])
+  
+  run <- ode(y, times, parms = params.mich.trip,func = mich.trip)
+  return(run[max(times),])
+  
+})
+
+sim.mich.menten.triple <- do.call(rbind, sim.mich.menten.triple)
+sim.mich.menten.triple <- as_data_frame(sim.mich.menten.triple)
+sim.mich.menten.triple$Pin <- loads$Pin
+sim.mich.menten.triple$Nin <- loads$Nin
+sim.mich.menten.triple$NPinflow <- loads$NPinmolar
+
+# Add info on which species one
+sim.mich.menten.triple <- sim.mich.menten.triple %>%
+  mutate(winner = max.col(sim.mich.menten.triple[,2:4]),
+         winner = gsub(1, "Diatom", winner),
+         winner = gsub(2, "Greens", winner),
+         winner = gsub(3, "Cyanos", winner))
+table(sim.mich.menten.triple$winner)
+
+```
+
+```{r}
+
+sim.mich.menten.triple %>%
+  ggplot(aes(Pin, Nin, fill = winner)) + 
+  geom_raster() + 
+  geom_abline(slope = 16 * 14.007/30.974, lty = "dashed", col = "white") 
+
+```
+
+### Droop formation/flexible stoichiometry
+
+```{r}
+params.droop.triple <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # light parameters
+  I0 = NA, # surface light
+  kBg= 0.1,		# background light attenuation (m-1)/(g C m-3); 0.1-5.6 from Jager & Diehl
+  kA=0.0003, # algal light attenuation (m-1)/(mg C m-3); 0.0003 from Jager & Diehl
+ 
+  # algae physiology parameters
+  umax1 = traits[12, "diatoms"],
+  umax2 = traits[12, "greens"],
+  umax3 = traits[12, "cyanos"],
+  
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KLight1 = traits[11, "diatoms"], # light half sat constant 
+  KLight2 = traits[11, "greens"], # light half sat constant 
+  KLight3 = traits[11, "cyanos"], # light half sat constant
+  
+  KP1 = traits[2, "diatoms"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  KP2 = traits[2, "greens"] * 1000,
+  KP3 = traits[2, "cyanos"] * 1000,
+  minQP1 = traits[6, "diatoms"], # algae cell P quota in mg P mg^-1 C^-1 f
+  minQP2 = traits[6, "greens"],
+  minQP3 = traits[6, "cyanos"],
+  upP1 = traits[4, "diatoms"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  upP2 = traits[4, "greens"],
+  upP3 = traits[4, "cyanos"],
+  KN1 = traits[1, "diatoms"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  KN2 = traits[1, "greens"] * 1000,
+  KN3 = traits[1, "cyanos"] * 1000,
+  minQN1 = traits[5, "diatoms"], # algae cell N quota in mg N mg^-1 C^-1 f
+  minQN2 = traits[5, "greens"],
+  minQN3 = traits[5, "cyanos"],
+  upN1 = traits[3, "diatoms"], # max uptake rate N per day in mg N mg C^-1 day^-1 
+  upN2 = traits[3, "greens"],
+  upN3 = traits[3, "cyanos"]
+)
+
+
+
+names(params.droop.triple) <- c("SA", "zmix", "Pin", "Nin", "I0", "kBg", "kA",
+                             "umax1", "umax2", "umax3", "lA", "v", 
+                             "KLight1", "KLight2", "KLight3",
+                             "KP1", "KP2", "KP3", "minQP1", "minQP2", "minQP3",
+                             "upP1", "upP2", "upP3",
+                             "KN1", "KN2", "KN3", "minQN1", "minQN2", "minQN3",
+                             "upN1", "upN2", "upN3")
+names(params.droop.triple)
+params.droop.triple <- unlist(params.droop.triple)
+
+
+```
+
+```{r sim droop model}
+sim.droop.triple <- lapply(1:nrow(loads), function(i) {
+  params.droop.triple["Pin"] = loads[i, "Pin"]
+  params.droop.triple["Nin"] = loads[i, "Nin"]
+  y <- c("A1" = 100,
+         "A2" = 100,
+         "A3" = 100,
+         "P" = loads[i, "Pin"],
+         "N" = loads[i, "Nin"],
+         "QP1" = 0.015,
+         "QP2" = 0.015,
+         "QP3" = 0.015,
+         "QN1" = 0.1,
+         "QN2" = 0.1,
+         "QN3" = 0.1)
+  
+  run <- ode(y, times, parms = params.droop.triple, func = droop.trip)
+  return(run[max(times),])
+  
+})
+
+sim.droop.triple <- do.call(rbind, sim.droop.triple)
+sim.droop.triple <- as_data_frame(sim.droop.triple)
+sim.droop.triple$Pin <- loads$Pin
+sim.droop.triple$Nin <- loads$Nin
+sim.droop.triple$NPinflow <- loads$NPinmolar
+
+# Add info on which species one
+sim.droop.triple <- sim.droop.triple %>%
+  mutate(winner = max.col(sim.droop.triple[,2:4]),
+         winner = gsub(1, "Diatom", winner),
+         winner = gsub(2, "Greens", winner),
+         winner = gsub(3, "Cyanos", winner))
+table(sim.droop.triple$winner)
+```
+
+```{r}
+sim.droop.triple %>%
+  ggplot(aes(Pin, Nin, fill = winner)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16*14.001)/30.974, col = "white")
+```
+
+## 25th quantile trait values
+
+### Michaelis-Menten/static stoichiometry
+
+```{r Michaelis Menten trait values}
+
+
+params.mich.trip.q25 <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  
+  # light parameters
+  I0 = NA, # incident light
+  kBg= 0.1,		# background light attenuation (m-1)/(g C m-3); 0.1-5.6 from Jager & Diehl
+  kA=0.0003, # algal light attenuation (m-1)/(mg C m-3); 0.0003 from Jager & Diehl
+
+  # algae physiology parameters
+  umax1 = traitsq25[12, "diatoms"],
+  umax2 = traitsq25[12, "greens"],
+  umax3 = traitsq25[12, "cyanos"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KLight1 = traitsq25[11, "diatoms"], # light half sat constant 
+  KLight2 = traitsq25[11, "greens"], # light half sat constant 
+  KLight3 = traitsq25[11, "cyanos"], # light half sat constant
+  KP1 = traitsq25[2, "diatoms"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  KP2 = traitsq25[2, "greens"] * 1000,
+  KP3 = traitsq25[2, "cyanos"] * 1000,
+  QP1 = traitsq25[6, "diatoms"], # algae cell P quota in mg P mg^-1 C^-1 
+  QP2 = traitsq25[6, "greens"],
+  QP3 = traitsq25[6, "cyanos"],
+  KN1 = traitsq25[1, "diatoms"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  KN2 = traitsq25[1, "greens"] * 1000,
+  KN3 = traitsq25[1, "cyanos"] * 1000,
+  QN1 = traitsq25[5, "diatoms"], # algae cell N quota in mg N mg^-1 C^-1 
+  QN2 = traitsq25[5, "greens"],
+  QN3 = traitsq25[5, "cyanos"]
+)
+names(params.mich.trip.q25) <- c("SA", "zmix", "Pin", "Nin", "I0", "kBg", "kA",
+                             "umax1", "umax2", "umax3", "lA", "v", 
+                             "KLight1", "KLight2", "KLight3",
+                             "KP1", "KP2", "KP3", "QP1", "QP2", "QP3",
+                             "KN1", "KN2", "KN3", "QN1", "QN2", "QN3")
+names(params.mich.trip.q25)
+params.mich.trip.q25 <- unlist(params.mich.trip.q25)
+
+```
+
+```{r run simulations for Michaelis Menten model with quantile25 trait parameters}
+
+# issue occuring at row 34:35 of loads. dunno why
+
+sim.mich.menten.triple.q25 <- lapply(1:nrow(loads), function(i) {
+  params.mich.trip.q25["Pin"] = loads[i, "Pin"]
+  params.mich.trip.q25["Nin"] = loads[i, "Nin"]
+  y <- c("A1" = 100,
+         "A2" = 100,
+         "A3" = 100,
+         "P" = loads[i, "Pin"],
+         "N" = loads[i, "Nin"])
+
+  run <- ode(y, times, parms = params.mich.trip.q25,func = mich.trip)
+  return(run[max(times),])
+  
+})
+
+sim.mich.menten.triple.q25 <- do.call(rbind, sim.mich.menten.triple.q25)
+sim.mich.menten.triple.q25 <- as_data_frame(sim.mich.menten.triple.q25)
+sim.mich.menten.triple.q25$Pin <- loads$Pin
+sim.mich.menten.triple.q25$Nin <- loads$Nin
+sim.mich.menten.triple.q25$NPinflow <- loads$NPinmolar
+
+# Add info on which species one
+sim.mich.menten.triple.q25 <- sim.mich.menten.triple.q25 %>%
+  mutate(winner = max.col(sim.mich.menten.triple.q25[,2:4]),
+         winner = gsub(1, "Diatom", winner),
+         winner = gsub(2, "Greens", winner),
+         winner = gsub(3, "Cyanos", winner))
+table(sim.mich.menten.triple.q25$winner)
+
+```
+
+```{r}
+sim.mich.menten.triple.q25 %>%
+  ggplot(aes(Pin, Nin, fill = winner)) + 
+  geom_raster() + 
+  geom_abline(slope = 16 * 14.007/30.974, lty = "dashed", col = "white") 
+```
+
+### Droop formation/flexible stoichiometry with quantile 25 trait parameters
+
+```{r set up parameters with q25}
+params.droop.triple.q25 <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # light parameters
+  I0 = NA, # surface light
+  kBg= 0.1,		# background light attenuation (m-1)/(g C m-3); 0.1-5.6 from Jager & Diehl
+  kA=0.0003, # algal light attenuation (m-1)/(mg C m-3); 0.0003 from Jager & Diehl
+ 
+  # algae physiology parameters
+  umax1 = traitsq25[12, "diatoms"],
+  umax2 = traitsq25[12, "greens"],
+  umax3 = traitsq25[12, "cyanos"],
+  
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KLight1 = traitsq25[11, "diatoms"], # light half sat constant 
+  KLight2 = traitsq25[11, "greens"], # light half sat constant 
+  KLight3 = traitsq25[11, "cyanos"], # light half sat constant
+  
+  KP1 = traitsq25[2, "diatoms"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  KP2 = traitsq25[2, "greens"] * 1000,
+  KP3 = traitsq25[2, "cyanos"] * 1000,
+  minQP1 = traitsq25[6, "diatoms"], # algae cell P quota in mg P mg^-1 C^-1 f
+  minQP2 = traitsq25[6, "greens"],
+  minQP3 = traitsq25[6, "cyanos"],
+  upP1 = traitsq25[4, "diatoms"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  upP2 = traitsq25[4, "greens"],
+  upP3 = traitsq25[4, "cyanos"],
+  KN1 = traitsq25[1, "diatoms"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  KN2 = traitsq25[1, "greens"] * 1000,
+  KN3 = traitsq25[1, "cyanos"] * 1000,
+  minQN1 = traitsq25[5, "diatoms"], # algae cell N quota in mg N mg^-1 C^-1 f
+  minQN2 = traitsq25[5, "greens"],
+  minQN3 = traitsq25[5, "cyanos"],
+  upN1 = traitsq25[3, "diatoms"], # max uptake rate N per day in mg N mg C^-1 day^-1 
+  upN2 = traitsq25[3, "greens"],
+  upN3 = traitsq25[3, "cyanos"]
+)
+
+
+
+names(params.droop.triple.q25) <- c("SA", "zmix", "Pin", "Nin", "I0", "kBg", "kA",
+                             "umax1", "umax2", "umax3", "lA", "v", 
+                             "KLight1", "KLight2", "KLight3",
+                             "KP1", "KP2", "KP3", "minQP1", "minQP2", "minQP3",
+                             "upP1", "upP2", "upP3",
+                             "KN1", "KN2", "KN3", "minQN1", "minQN2", "minQN3",
+                             "upN1", "upN2", "upN3")
+names(params.droop.triple.q25)
+params.droop.triple.q25 <- unlist(params.droop.triple.q25)
+```
+
+```{r}
+
+sim.droop.triple.q25 <- lapply(1:nrow(loads), function(i) {
+  params.droop.triple.q25["Pin"] = loads[i, "Pin"]
+  params.droop.triple.q25["Nin"] = loads[i, "Nin"]
+  y <- c("A1" = 100,
+         "A2" = 100,
+         "A3" = 100,
+         "P" = loads[i, "Pin"],
+         "N" = loads[i, "Nin"],
+         "QP1" = 0.015,
+         "QP2" = 0.015,
+         "QP3" = 0.015,
+         "QN1" = 0.1,
+         "QN2" = 0.1,
+         "QN3" = 0.1)
+  
+  run <- ode(y, times, parms = params.droop.triple.q25, func = droop.trip)
+  return(run[max(times),])
+  
+})
+
+sim.droop.triple.q25 <- do.call(rbind, sim.droop.triple.q25)
+sim.droop.triple.q25 <- as_data_frame(sim.droop.triple.q25)
+sim.droop.triple.q25$Pin <- loads$Pin
+sim.droop.triple.q25$Nin <- loads$Nin
+sim.droop.triple.q25$NPinflow <- loads$NPinmolar
+
+# Add info on which species one
+sim.droop.triple.q25 <- sim.droop.triple.q25 %>%
+  mutate(winner = max.col(sim.droop.triple.q25[,2:4]),
+         winner = gsub(1, "Diatom", winner),
+         winner = gsub(2, "Greens", winner),
+         winner = gsub(3, "Cyanos", winner))
+table(sim.droop.triple.q25$winner)
+
+```
+
+```{r}
+sim.droop.triple.q25 %>%
+  ggplot(aes(Pin, Nin, fill = winner)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16*14.001)/30.974, col = "white") 
+```
+
+## 75^th^ quantile trait values
+
+### Michaelis-Menten/static stoichiometry
+
+```{r specify parameters for Michaelis Menten model with quantile 75}
+
+params.mich.trip.q75 <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  
+  # light parameters
+  I0 = NA, # incident light
+  kBg= 0.1,		# background light attenuation (m-1)/(g C m-3); 0.1-5.6 from Jager & Diehl
+  kA=0.0003, # algal light attenuation (m-1)/(mg C m-3); 0.0003 from Jager & Diehl
+
+  # algae physiology parameters
+  umax1 = traitsq75[12, "diatoms"],
+  umax2 = traitsq75[12, "greens"],
+  umax3 = traitsq75[12, "cyanos"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KLight1 = traitsq75[11, "diatoms"], # light half sat constant 
+  KLight2 = traitsq75[11, "greens"], # light half sat constant 
+  KLight3 = traitsq75[11, "cyanos"], # light half sat constant
+  KP1 = traitsq75[2, "diatoms"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  KP2 = traitsq75[2, "greens"] * 1000,
+  KP3 = traitsq75[2, "cyanos"] * 1000,
+  QP1 = traitsq75[6, "diatoms"], # algae cell P quota in mg P mg^-1 C^-1 
+  QP2 = traitsq75[6, "greens"],
+  QP3 = traitsq75[6, "cyanos"],
+  KN1 = traitsq75[1, "diatoms"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  KN2 = traitsq75[1, "greens"] * 1000,
+  KN3 = traitsq75[1, "cyanos"] * 1000,
+  QN1 = traitsq75[5, "diatoms"], # algae cell N quota in mg N mg^-1 C^-1 
+  QN2 = traitsq75[5, "greens"],
+  QN3 = traitsq75[5, "cyanos"]
+)
+names(params.mich.trip.q75) <- c("SA", "zmix", "Pin", "Nin", "I0", "kBg", "kA",
+                             "umax1", "umax2", "umax3", "lA", "v", 
+                             "KLight1", "KLight2", "KLight3",
+                             "KP1", "KP2", "KP3", "QP1", "QP2", "QP3",
+                             "KN1", "KN2", "KN3", "QN1", "QN2", "QN3")
+names(params.mich.trip.q75)
+params.mich.trip.q75 <- unlist(params.mich.trip.q75)
+```
+
+```{r run Michaelis Menten model with quantile 75 trait data}
+
+
+sim.mich.menten.triple.q75 <- lapply(1:nrow(loads), function(i) {
+  params.mich.trip.q75["Pin"] = loads[i, "Pin"]
+  params.mich.trip.q75["Nin"] = loads[i, "Nin"]
+  y <- c("A1" = 100,
+         "A2" = 100,
+         "A3" = 100,
+         "P" = loads[i, "Pin"],
+         "N" = loads[i, "Nin"])
+  
+  run <- ode(y, times, parms = params.mich.trip.q75,func = mich.trip)
+  return(run[max(times),])
+  
+})
+
+sim.mich.menten.triple.q75 <- do.call(rbind, sim.mich.menten.triple.q75)
+sim.mich.menten.triple.q75 <- as_data_frame(sim.mich.menten.triple.q75)
+sim.mich.menten.triple.q75$Pin <- loads$Pin
+sim.mich.menten.triple.q75$Nin <- loads$Nin
+sim.mich.menten.triple.q75$NPinflow <- loads$NPinmolar
+
+# Add info on which species one
+sim.mich.menten.triple.q75 <- sim.mich.menten.triple.q75 %>%
+  mutate(winner = max.col(sim.mich.menten.triple.q75[,2:4]),
+         winner = gsub(1, "Diatom", winner),
+         winner = gsub(2, "Greens", winner),
+         winner = gsub(3, "Cyanos", winner))
+table(sim.mich.menten.triple.q75$winner)
+
+```
+
+```{r}
+sim.mich.menten.triple.q75 %>%
+  ggplot(aes(Pin, Nin, fill = winner)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16*14.001)/30.974, col = "white") 
+```
+
+### Droop formation/flexible stoichiometry with 75^th^ percentile traits
+
+```{r}
+params.droop.triple.q75 <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # light parameters
+  I0 = NA, # surface light
+  kBg= 0.1,		# background light attenuation (m-1)/(g C m-3); 0.1-5.6 from Jager & Diehl
+  kA=0.0003, # algal light attenuation (m-1)/(mg C m-3); 0.0003 from Jager & Diehl
+ 
+  # algae physiology parameters
+  umax1 = traitsq75[12, "diatoms"],
+  umax2 = traitsq75[12, "greens"],
+  umax3 = traitsq75[12, "cyanos"],
+  
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KLight1 = traitsq75[11, "diatoms"], # light half sat constant 
+  KLight2 = traitsq75[11, "greens"], # light half sat constant 
+  KLight3 = traitsq75[11, "cyanos"], # light half sat constant
+  
+  KP1 = traitsq75[2, "diatoms"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  KP2 = traitsq75[2, "greens"] * 1000,
+  KP3 = traitsq75[2, "cyanos"] * 1000,
+  minQP1 = traitsq75[6, "diatoms"], # algae cell P quota in mg P mg^-1 C^-1 f
+  minQP2 = traitsq75[6, "greens"],
+  minQP3 = traitsq75[6, "cyanos"],
+  upP1 = traitsq75[4, "diatoms"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  upP2 = traitsq75[4, "greens"],
+  upP3 = traitsq75[4, "cyanos"],
+  KN1 = traitsq75[1, "diatoms"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  KN2 = traitsq75[1, "greens"] * 1000,
+  KN3 = traitsq75[1, "cyanos"] * 1000,
+  minQN1 = traitsq75[5, "diatoms"], # algae cell N quota in mg N mg^-1 C^-1 f
+  minQN2 = traitsq75[5, "greens"],
+  minQN3 = traitsq75[5, "cyanos"],
+  upN1 = traitsq75[3, "diatoms"], # max uptake rate N per day in mg N mg C^-1 day^-1 
+  upN2 = traitsq75[3, "greens"],
+  upN3 = traitsq75[3, "cyanos"]
+)
+
+
+
+names(params.droop.triple.q75) <- c("SA", "zmix", "Pin", "Nin", "I0", "kBg", "kA",
+                             "umax1", "umax2", "umax3", "lA", "v", 
+                             "KLight1", "KLight2", "KLight3",
+                             "KP1", "KP2", "KP3", "minQP1", "minQP2", "minQP3",
+                             "upP1", "upP2", "upP3",
+                             "KN1", "KN2", "KN3", "minQN1", "minQN2", "minQN3",
+                             "upN1", "upN2", "upN3")
+names(params.droop.triple.q75)
+params.droop.triple.q75 <- unlist(params.droop.triple.q75)
+```
+
+```{r run droop simulations with 75th quantile trait data}
+sim.droop.triple.q75 <- lapply(1:nrow(loads), function(i) {
+  params.droop.triple.q75["Pin"] = loads[i, "Pin"]
+  params.droop.triple.q75["Nin"] = loads[i, "Nin"]
+  y <- c("A1" = 100,
+         "A2" = 100,
+         "A3" = 100,
+         "P" = loads[i, "Pin"],
+         "N" = loads[i, "Nin"],
+         "QP1" = 0.015,
+         "QP2" = 0.015,
+         "QP3" = 0.015,
+         "QN1" = 0.1,
+         "QN2" = 0.1,
+         "QN3" = 0.1)
+  
+  run <- ode(y, times, parms = params.droop.triple.q75, func = droop.trip)
+  return(run[max(times),])
+  
+})
+
+sim.droop.triple.q75 <- do.call(rbind, sim.droop.triple.q75)
+sim.droop.triple.q75 <- as_data_frame(sim.droop.triple.q75)
+sim.droop.triple.q75$Pin <- loads$Pin
+sim.droop.triple.q75$Nin <- loads$Nin
+sim.droop.triple.q75$NPinflow <- loads$NPinmolar
+
+# Add info on which species one
+sim.droop.triple.q75 <- sim.droop.triple.q75 %>%
+  mutate(winner = max.col(sim.droop.triple.q75[,2:4]),
+         winner = gsub(1, "Diatom", winner),
+         winner = gsub(2, "Greens", winner),
+         winner = gsub(3, "Cyanos", winner))
+table(sim.droop.triple.q75$winner)
+```
+
+```{r}
+sim.droop.triple.q75 %>%
+  ggplot(aes(Pin, Nin, fill = winner)) + 
+  geom_raster() + 
+  geom_abline(intercept = 0, slope = (16*14.001)/30.974, col = "white") 
+```
+
+# Summary/skip to here
+
+This section provides a summary of the 6 simulations and generates some pretty figures.
+
+```{r bind all data together and add some metadata}
+# Michaelis Menten
+all.michaelis <- do.call(rbind, list(
+  sim.mich.menten.triple %>% mutate(Trait = "Median"),
+  sim.mich.menten.triple.q25 %>% mutate(Trait = "25th quantile"),
+  sim.mich.menten.triple.q75 %>% mutate(Trait = "75th quantile")
+)) %>%
+  mutate(Trait = factor(Trait, 
+                        levels = c("Median", "25th quantile", "75th quantile")))
+# Droop
+all.droop <- do.call(rbind, list(
+  sim.droop.triple %>% mutate(Trait = "Median"),
+  sim.droop.triple.q25 %>% mutate(Trait = "25th quantile"),
+  sim.droop.triple.q75 %>% mutate(Trait = "75th quantile")
+)) %>%
+  mutate(Trait = factor(Trait, 
+                        levels = c("Median", "25th quantile", "75th quantile")))
+
+```
+
+Create a summary table of the number of competitive outcomes
+
+```{r summary table competition}
+# Michaelis Menten
+comp.out.michaelis <- all.michaelis %>%
+  group_by(Trait, winner) %>%
+  summarise(n = n(),
+            perc.occurence = n*100/100) %>%
+  pivot_wider(id_cols = c(winner), names_from = Trait, values_from = perc.occurence)
+comp.out.michaelis
+
+# Droop
+comp.out.droop <- all.droop %>%
+  group_by(Trait, winner) %>%
+  summarise(n = n(),
+            perc.occurence = n*100/100) %>%
+  pivot_wider(id_cols = c(winner), names_from = Trait, values_from = perc.occurence)
+comp.out.droop
+
+```
+
+```{r create summary figure}
+
+(michaelis.figure <- all.michaelis %>%
+  ggplot(aes(Pin, Nin, fill = winner)) + 
+  geom_raster() + 
+  facet_grid(Trait ~ .) + 
+  geom_abline(slope = 16*14.007/30.974, col = "white", lty = "dashed", lwd = 1) + 
+  #scale_fill_jco() + 
+  scale_fill_manual(
+    values = c("Diatom" = "gold",
+               "Greens" = "forestgreen",
+               "Cyanos" = "cyan")
+  ) + 
+  labs(x = expression("P inflow ug L"^-1), y = expression("N inflow ug L"^-1),
+       fill = NULL, 
+       subtitle = "Monod model \nfixed stoichiometry")) + 
+  theme(legend.position = "bottom")
+
+(droop.figure <- all.droop %>%
+  ggplot(aes(Pin, Nin, fill = winner)) + 
+  geom_raster() + 
+  facet_grid(Trait ~ .) + 
+  geom_abline(slope = 16*14.007/30.974, col = "white", lty = "dashed", lwd = 1) + 
+  #scale_fill_jco() + 
+  scale_fill_manual(
+    values = c("Diatom" = "gold",
+               "Greens" = "forestgreen",
+               "Cyanos" = "cyan")
+  ) + 
+  labs(x = expression("P inflow ug L"^-1), y = expression("N inflow ug L"^-1),
+       fill = NULL, 
+       subtitle = "Droop model \nflexible stoichiometry")) + 
+  theme(legend.position = "bottom")
+
+final.fig <- ggpubr::ggarrange(plotlist = list(droop.figure, michaelis.figure), 
+                               ncol = 2, nrow = 1, align = "hv",
+                               legend = "bottom")
+
+final.fig
+
+ggsave2("competition simulations no light.jpg", 
+        final.fig, width = 12, height = 8)
+
+```
+
+## Notes from summary
+
+-   The model/outcome of competition seems to be rather sensitive to light. Diatoms which have the highest K~Light~ loose in every simulation and scenario. Increasing light availability favors green algae who appear to be similarly or more competitive for nutrients but not for light as cyanobacteria. This is somewhat of an unexpected outcome.
