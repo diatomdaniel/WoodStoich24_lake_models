@@ -785,8 +785,8 @@ fig.exp3.np
 
 ## plot GPP for experiment 3 pt 2
 (fig.exp3.pt.2gpp <- exp3.data2 %>%
-  ggplot(aes(Pin, A1, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
+  ggplot(aes(Pin, A1, col = NP_inflow, group = NP_inflow, pch = species)) + 
+  geom_point() + 
   facet_grid(model~species) + 
   labs(x = expression("Inflow P mg m"^-3), y = expression("GPP mg C m"^-2 ~ "day"^-1),
        color = "Inflow N:P (mass)") + 
@@ -796,18 +796,18 @@ fig.exp3.np
 # QN
 fig.exp3.pt2.np1 <- exp3.data2 %>%
   filter(model == "Droop") %>%
-  ggplot(aes(Pin, 1/QN1, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  facet_wrap(species~.) + 
+  ggplot(aes(Pin, 1/QN1, col = NP_inflow, group = NP_inflow, pch = species)) + 
+  geom_point() + 
+  #facet_wrap(species~.) + 
   labs(x = expression("Inflow P mg m"^-3), y = "Cell C:N mass",
        col = "Inflow N:P (mass)") + 
   scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0)
 # QP
 fig.exp3.pt2.np2 <- exp3.data2 %>%
   filter(model == "Droop") %>%
-  ggplot(aes(Pin, 1/QP1, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  facet_wrap(species~.) + 
+  ggplot(aes(Pin, 1/QP1, col = NP_inflow, group = NP_inflow, pch = species)) + 
+  geom_point() + 
+  #facet_wrap(species~.) + 
   labs(x = expression("Inflow P mg m"^-3), y = "Cell C:P mass",
        col = "Inflow N:P (mass)") + 
   scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0)
@@ -815,9 +815,9 @@ fig.exp3.pt2.np2 <- exp3.data2 %>%
 fig.exp3.pt2.np3 <- exp3.data2 %>%
   filter(model == "Droop") %>%
   mutate(N_P_cell = QN1/QP1) %>%
-  ggplot(aes(Pin, N_P_cell, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  facet_wrap(species~.) + 
+  ggplot(aes(Pin, N_P_cell, col = NP_inflow, group = NP_inflow, pch = species)) + 
+  geom_point() + 
+  #facet_wrap(species~.) + 
   labs(x = expression("Inflow P mg m"^-3), y = "Cell N:P mass",
        col = "Inflow N:P (mass)")  + 
   scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0)
