@@ -1,0 +1,6 @@
+"0","# grids take too long to run, gonna save to r data file and reload for convenience
+save(mm.grid, ""temporary_model_files/corman2023_MM_gridsearch.Rdata"")
+"
+"2","Error in save(mm.grid, ""temporary_model_files/corman2023_MM_gridsearch.Rdata"") : 
+  object ‘temporary_model_files/corman2023_MM_gridsearch.Rdata’ not found
+"

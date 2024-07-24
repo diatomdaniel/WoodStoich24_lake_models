@@ -599,6 +599,64 @@ exp3.data2 <- bind_rows(
 
 ```
 
+### Experiment 4
+
+```{r }
+
+mm.grid <- expand.grid(
+  KN1 = seq(0.01, 0.1, 0.01) * 1000,
+  KP1 = seq(0.005, 0.05, 0.005) * 1000,
+  QP1 = c(0.01, 0.03, 0.05),
+  QN1 = 0.1,
+  #QP1 = seq(0.01, 0.1, 0.01),
+  #QN1 = seq(0.01, 0.2, 0.05),
+  Nin = c(5, 50, 100),
+  Pin = c(5, 50, 100)
+)
+
+```
+
+```{r}
+sims <- lapply(1:nrow(mm.grid), function(i) {
+  params.mich["Pin"] = mm.grid[i, "Pin"]
+  params.mich["Nin"] = mm.grid[i, "Nin"]
+  params.mich["QP1"] = mm.grid[i, "QP1"]
+  params.mich["QN1"] = mm.grid[i, "QN1"]
+  params.mich["KP1"] = mm.grid[i, "KP1"]
+  params.mich["KN1"] = mm.grid[i, "KN1"]
+  y <- c("A1" = 100,
+         "P" = mm.grid[i, "Pin"],
+         "N" = mm.grid[i, "Nin"])
+  
+  run <- ode(y, times, parms = params.mich, func = mich.single)
+  return(run[max(times),])
+  
+})
+
+sims <- do.call(rbind, sims)
+sims <- as_data_frame(sims)
+sims <- bind_cols(sims, mm.grid)
+
+sims$scale_KN <- unlist(scale(sims$KN1)[,1])
+sims$scale_KP <- unlist(scale(sims$KP1)[,1])
+sims$scale_QN <- unlist(scale(sims$QN1)[,1])
+sims$scale_QP <- unlist(scale(sims$QP1)[,1])
+
+```
+
+```{r}
+library(ggtern)
+
+sims %>% 
+  ggtern(aes(KN1, KP1, QP1, col = A1)) + 
+  geom_point() + 
+  facet_grid(Pin~Nin)
+
+```
+
+
+
+
 
 ## Output
 
