@@ -1,0 +1,5 @@
+"0","grid.droop.new$z_mix <- rep(corman2$zmix, nrow(grid))
+"
+"2","Error in `$<-.data.frame`(`*tmp*`, z_mix, value = c(1.47089244902049,  : 
+  replacement has 1092 rows, data has 1820
+"

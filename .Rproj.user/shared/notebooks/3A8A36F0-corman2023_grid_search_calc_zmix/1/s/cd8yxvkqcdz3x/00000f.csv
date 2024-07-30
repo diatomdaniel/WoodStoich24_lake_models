@@ -1,4 +1,4 @@
-"0","pck <- c(""deSolve"", ""tidyverse"", ""cowplot"", ""ggsci"", ""ggpubr"", ""ggtern"", ""patchwork"")"
+"0","pck <- c(""deSolve"", ""tidyverse"", ""cowplot"", ""ggsci"", ""ggpubr"", ""patchwork"", ""lubridate"")"
 "0","lapply(pck, require, character.only = T)"
 "1","[[1]]
 "
@@ -69,8 +69,5 @@
 "0","source(""models/droop_single_noLight_calc_zmix.R"") # droop model, one algae species; model 3 in Carly's framework"
 "0",""
 "0","# set up scenarios"
-"0","times <- 1:500"
-"0",""
-"0","# load data set"
-"0","corman <- read_csv(""data4input/Corman2023 metabolism result.csv"")"
+"0","times <- 1:1000"
 "0",""
