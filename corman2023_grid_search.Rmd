@@ -132,6 +132,8 @@ corman2$zmix <- 10^(-0.515 + log10(corman2$DOC_mgL) + 0.115 * log10(2 * sqrt(cor
 
 ```
 
+overview figure of Corman et al GPP data and relationship to nutrient loads; note the lack of relationship at low loads indicating decoupling of supply and production (the models don't capture these data well but that is okay because they have no mechanisms to do so; models are very dependent on loads to model GPP)
+
 ```{r plot corman data for overview ,dpi = 500, fig.width=10, fig.height=3}
 
 c1 <- corman2 %>%
@@ -305,34 +307,34 @@ This code chunk takes \>1hr to run so I've saved the output to an external file 
 
 ```{r run MM across input grid}
 #takes over an hour to run!!
-(start <- Sys.time())
-mm.grid <- lapply(1:nrow(grid.new), function(i){
-  # indexing
-  params.mich["SA"] = grid.new[i, "SA"]
-  params.mich["DOC"] = grid.new[i, "DOC_mgL"]
-  params.mich["z"] = grid.new[i, "z_m"]
-  params.mich["KP1"] = grid.new[i, "KP1"]
-  params.mich["KN1"] = grid.new[i, "KN1"]
-  params.mich["QP1"] = grid.new[i, "minQP1"]
-  params.mich["QN1"] = grid.new[i, "minQN1"]
-  params.mich["Pin"] = grid.new[i, "TP_load"]
-  params.mich["Nin"] = grid.new[i, "TN_load"]
-  # starting values
-  y <- c("A1" = 100, "P" = grid.new[i, "TP_load"], "N" = grid.new[i, "TN_load"])
-  run <- ode(y, times, parms = params.mich, func = mich.single)
-  return(run[max(times),])
-})
-# convert to df
-mm.grid <- do.call(rbind, mm.grid)
-mm.grid <- as_data_frame(mm.grid)
-(end <- Sys.time())
-time.elapsed <- (end - start)/60/60
-print(paste0("Time elapsed = ", time.elapsed, " hours!"))
+# (start <- Sys.time())
+# mm.grid <- lapply(1:nrow(grid.new), function(i){
+#   # indexing
+#   params.mich["SA"] = grid.new[i, "SA"]
+#   params.mich["DOC"] = grid.new[i, "DOC_mgL"]
+#   params.mich["z"] = grid.new[i, "z_m"]
+#   params.mich["KP1"] = grid.new[i, "KP1"]
+#   params.mich["KN1"] = grid.new[i, "KN1"]
+#   params.mich["QP1"] = grid.new[i, "minQP1"]
+#   params.mich["QN1"] = grid.new[i, "minQN1"]
+#   params.mich["Pin"] = grid.new[i, "TP_load"]
+#   params.mich["Nin"] = grid.new[i, "TN_load"]
+#   # starting values
+#   y <- c("A1" = 100, "P" = grid.new[i, "TP_load"], "N" = grid.new[i, "TN_load"])
+#   run <- ode(y, times, parms = params.mich, func = mich.single)
+#   return(run[max(times),])
+# })
+# # convert to df
+# mm.grid <- do.call(rbind, mm.grid)
+# mm.grid <- as_data_frame(mm.grid)
+# (end <- Sys.time())
+# time.elapsed <- (end - start)/60/60
+# print(paste0("Time elapsed = ", time.elapsed, " hours!"))
 
 # # grids take too long to run, gonna save to r data file and reload for convenience
 # save(mm.grid,file = "temporary_model_files/corman2023_MM_gridsearch.Rdata")
-save(mm.grid,file = "temporary_model_files/corman2023_MM_gridsearch_zmix.Rdata")
-#load("temporary_model_files/corman2023_MM_gridsearch_zmix.Rdata")
+#save(mm.grid,file = "temporary_model_files/corman2023_MM_gridsearch_zmix.Rdata")
+load("temporary_model_files/corman2023_MM_gridsearch_zmix.Rdata")
 # add to grid
 grid.new$est_GPP <- mm.grid$A1
  
@@ -400,7 +402,9 @@ Re-run the model with the best parameters as determined by the grid search above
 ```{r re-run MM model with the best parameters}
 best.run <- lapply(1:nrow(corman2), function(i){
   # indexing
-   params.mich["SA"] = pull(corman2[i, "SA"])
+  params.mich["SA"] = pull(corman2[i, "SA"])
+  params.mich["DOC"] =  pull(corman2[i, "DOC_mgL"])
+  params.mich["z"] =  pull(corman2[i, "z_m"])
   params.mich["KP1"] = pull(best.parm[1, "KP1"])
   params.mich["KN1"] = pull(best.parm[1, "KN1"])
   params.mich["QP1"] = pull(best.parm[1, "minQP1"])
@@ -580,7 +584,9 @@ Re-run model with best parameters
 ```{r re-run droop  model with the best parameters}
 best.run.droop <- lapply(1:nrow(corman2), function(i){
   # indexing
-   params.droop["SA"] = pull(corman2[i, "SA"])
+  params.droop["SA"] = pull(corman2[i, "SA"])
+  params.droop["DOC"] = pull(corman2[i, "DOC_mgL"])
+  params.droop["z"] = pull(corman2[i, "z_m"])
   params.droop["KP1"] = pull(best.parm.droop[1, "KP1"])
   params.droop["KN1"] = pull(best.parm.droop[1, "KN1"])
   params.droop["minQP1"] = pull(best.parm.droop[1, "minQP1"])

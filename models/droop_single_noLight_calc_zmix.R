@@ -54,13 +54,14 @@ droop.single <- function(times, y, params) {
   Qin=SA*1e6*zmix/365	# m^3 day^-1
 
   # Volume = entire lake is mixed; zmix = zmax
-  V = SA * 1e6 * zmix
+  V = SA * 1e6 * z
   
   # biomass specific growth for entire mixed layer
   prod1 = (umax1 * min(1 - minQN1/QN1, 1 - minQP1/QP1 ))	# d-1
   
   # model biomass
   dA1.dt=A1*prod1-lA*A1-v/zmix*A1-Qin/(zmix*SA*1e6)*A1	# mg C m-3
+  GPP = A1 * prod1/1000
 
   # cell quota P  
   dQP1.dt = upP1 * (P/(KP1 + P)) - prod1  * QP1
@@ -74,7 +75,7 @@ droop.single <- function(times, y, params) {
   dN.dt= Qin/(zmix*SA*1e6)*(Nin-N)+ A1 * (-upN1 * (N/(KN1 + N)) +  lA * QN1)  # mg N m-3 (in epi);
   
   # return objects 
-  dY=c(dA1dt=dA1.dt, dPdt=dP.dt, dNdt = dN.dt, dQP1dt = dQP1.dt, dQ1Ndt = dQN1.dt)
+  dY=c(d.GPP = GPP, dPdt=dP.dt, dNdt = dN.dt, dQP1dt = dQP1.dt, dQ1Ndt = dQN1.dt)
   return(list(dY))
   
 } 

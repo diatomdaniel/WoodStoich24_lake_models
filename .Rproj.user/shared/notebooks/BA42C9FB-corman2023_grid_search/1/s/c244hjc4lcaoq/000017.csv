@@ -1,0 +1,5 @@
+"0","# range(grid.new.rmse$RMSE)"
+"0","# mean(grid.new.rmse$RMSE)"
+"0","#which.min(grid.new.rmse$RMSE)"
+"0","# select best parameters"
+"0","best.parm <- grid.new.rmse[which.min(grid.new.rmse$RMSE), ]"

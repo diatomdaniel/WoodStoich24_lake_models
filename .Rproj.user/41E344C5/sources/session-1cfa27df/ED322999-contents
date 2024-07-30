@@ -1,0 +1,48 @@
+
+# Troubleshooting code
+# estimating GPP from lake ecosystem models
+
+#pck
+library(tidyverse)
+library(deSolve)
+
+# fncts
+source("models/mich_single_noLight_calc_zmix.R")
+
+# set-up
+
+## michaelis-menten model for mean phytoplankton traits
+params <- c(
+  # lake parameters
+  SA= 2,		# lake surface area in km2
+  #zmix = 2, # lake mixing depth in m
+  Pin = 50, # P inflow concentration in mg P m^-3
+  Nin = 200, # N inflow concentration in mg N m^-3
+  # DOC = 5,
+  # z = 3,
+  I0 = 300,
+  
+  # algae physiology parameters
+  KLight = 100,
+  umax1 = 1,
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KP1 = 3, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = 0.015, # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = 5, # nitrogen half sat constant in mg N m^-3 
+  QN1 = 0.1 # algae cell N quota in mg N mg^-1 C^-1 
+)
+
+y <- c(A1 = 1, N = 50, P = 80)
+times <- 1:1000
+
+run <- ode(y, times, mich.single, parms = params)
+run <- as.data.frame(run)
+
+run %>% ggplot(aes(time, A1)) + geom_line()
+run %>% ggplot(aes(time, N)) + geom_line()
+
+run %>% ggplot(aes(time, P)) + geom_line()
+run %>% ggplot(aes(time, GPP)) + geom_line()
+
+

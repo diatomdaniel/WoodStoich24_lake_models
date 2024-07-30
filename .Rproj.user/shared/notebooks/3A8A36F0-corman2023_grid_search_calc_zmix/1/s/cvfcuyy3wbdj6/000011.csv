@@ -1,0 +1,5 @@
+"0",""
+"0","# some stats for text"
+"0","#summary(lm(GPP ~ A1, data =best.run))"
+"0","#cor.test(best.run$A1, best.run$GPP)"
+"0",""

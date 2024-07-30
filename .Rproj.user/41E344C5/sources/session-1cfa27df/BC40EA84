@@ -1,0 +1,26 @@
+{
+    "id": "BC40EA84",
+    "path": "~/GitHub/WoodStoich24_lake_models/models/mich_single_noLight_calc_zmix.R",
+    "project_path": "models/mich_single_noLight_calc_zmix.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1722263944707.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "16,2",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1722307851,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1722307851227,
+    "read_only": false,
+    "read_only_alternatives": []
+}
