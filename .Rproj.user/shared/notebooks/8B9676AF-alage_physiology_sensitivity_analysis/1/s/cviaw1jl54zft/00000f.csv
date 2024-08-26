@@ -1,0 +1,7 @@
+"0",""
+"0","# timesteps"
+"0","times <- 1:10000"
+"0","# loads"
+"0","loads <- expand.grid(Pin = seq(10, 500,50 ),"
+"0","                                Nin = seq(10,1500 , 100))"
+"0",""

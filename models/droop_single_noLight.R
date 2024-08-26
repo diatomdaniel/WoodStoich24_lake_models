@@ -49,6 +49,8 @@ droop.single <- function(times, y, params) {
   
   # biomass specific growth for entire mixed layer
   prod1 = (umax1 * min(1 - minQN1/QN1, 1 - minQP1/QP1 ))	# d-1
+  # gpp rate
+  GPP = prod1 * A1/1000 # this is the GPP rate! mg C L^-1 day^-1
   
   # model biomass
   dA1.dt=A1*prod1-lA*A1-v/zmix*A1-Qin/(zmix*SA*1e6)*A1	# mg C m-3
@@ -65,8 +67,10 @@ droop.single <- function(times, y, params) {
   dN.dt= Qin/(zmix*SA*1e6)*(Nin-N)+ A1 * (-upN1 * (N/(KN1 + N)) +  lA * QN1)  # mg N m-3 (in epi);
   
   # return objects 
+  gpp = c(GPP = GPP)
+  names(gpp) = "GPP"
   dY=c(dA1dt=dA1.dt, dPdt=dP.dt, dNdt = dN.dt, dQP1dt = dQP1.dt, dQ1Ndt = dQN1.dt)
-  return(list(dY))
+  return(list(dY, gpp))
   
 } 
 

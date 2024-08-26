@@ -1,0 +1,703 @@
+---
+title: "Corman et al Grid Search"
+author: "Daniel Gschwentner"
+date: "2024-07-22"
+output: html_document
+  toc: true
+  theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F)
+```
+
+
+Monthly aggregation
+
+Loads
+obtain monthly discharge
+divide load by discharge to get concentration 
+use that as model input
+
+calculate mixed layer depth from SA and DOC
+
+
+re-run SA with umax1 in prod term and return GPP instead of algal biomass.
+
+
+## Notes
+
+### 29/07/2024 DG
+
+- zmix: zmix calculated from surface area and DOC following Kelly et al 2018; lake DOC concentrations in Corman et al 2023 S1 Table 1; missing DOC data for 1 lake (Lillinonah) --> used median of data set
+
+- aggregated Corman et al 2023 GPP values by lake, year and month; this resulted in 114 observations
+  - there were 12 missing GPP observations, imputed with the median GPP value for a given lake
+
+- nutrient concentrations: aggregated stream nutrient concentrations by month and year; multiple streams per lake but averaged across them; Corman et al 2023 stream nutrient concentrations in ug L^-1^ which is equivalent to mg m^-3^.
+  - 5 observations were missing; imputed median TN/TP for the given lake
+  
+- after matching GPP and stream nutrient concentrations, had a total of 91 complete observations!
+
+- Corman et al 2023 GPP data is in mg O[2] L^-1^ day^-1^. Converted to mg C L^-1^ day^-1^ by multiplying by 12/32 conversion.
+
+
+
+## Introduction
+
+Code to conduct parameter value grid search for lake ecosystem models. Models are fit to [Corman et al 2023](https://aslopubs.onlinelibrary.wiley.com/doi/full/10.1002/lno.12449) GPP data using stream inflow nutrient concentrations and a range of algae physiology parameter values. The fit of the model and its parameters is determined by calculating the root-mean-square error (RMSE) between the model estimate and the known parameter values
+
+$$
+
+RMSE = \sqrt{mean((X_{known} - X_{measured})^2)}
+
+$$
+
+Basically, the parameter set which minimizes the RMSE is selected as the "optimal" parameter set and the model(s) are re-fit. Then the model output is compared to the real world data.
+
+## Setup
+
+```{r setup environment and load traits, include=F, warning=F, message=F, echo = F}
+pck <- c("deSolve", "tidyverse", "cowplot", "ggsci", "ggpubr", "patchwork", "lubridate")
+lapply(pck, require, character.only = T)
+theme_set(theme_cowplot() + 
+            theme(legend.justification = "center",
+                  legend.position = "bottom", 
+                  legend.text = element_text(),
+                  legend.title = element_text()))
+# load ODE models 
+# saved in external files for convenience
+# Michalis-Menten model
+source("models/mich_single_noLight_calc_zmix.R") # michaelis menten kinetics, one algae species; model 1 in Carly's framework
+# Droop model
+source("models/droop_single_noLight_calc_zmix.R") # droop model, one algae species; model 3 in Carly's framework
+
+# set up scenarios
+times <- 1:1000
+
+```
+
+```{r load corman data sets and aggregate}
+# load data sets
+# GPP
+corman.gpp <- read_csv("data4input/Corman2023 metabolism result.csv")
+# stream nutrients 
+corman.stream.nutrients  <- read_csv("data4input/Corman2023 stream nutrients.csv")
+# volume and DOC created from S1 T1 and T1 in paper
+# no DOC for Lillinonah! used median DOC of the data set = 11.8
+corman.vol <- tibble(
+  Lake = c("Acton", "Crampton", "EastLong", "Feeagh", "Harp", "Langtjern", "Lillinonah", "Lillsjoliden",
+           "Mangstrettjarn", "Mendota", "Morris", "Nastjarn", "Ovre", "Struptjarn", "Trout", "Vortsjarv"),
+  z = c(3.9, 5.03, 4.04, 14.50, 13.30, 2, 13, 3.8, 5.3, 12.80, 2.42, 4.20, 4, 3.80, 14.60, 2.80),
+  SA = c(2.5, 0.26, 0.03, 3.92, 0.71, 0.23, 6.26, 0.01, 0.02, 39.60, 0.06, 0.01, 0.05, 0.03, 15.70, 270), 
+  DOC_mgL = c(4.3, 4.6, 10.6, 5.6, 5.2, 11.8, 11.8, 15.5, 11.9, 4.7, 17.3, 8.2, 23.2, 19.9, 2.8, 11.9)) %>%
+  mutate(volume_m3 = SA * 1e6 * z)
+
+### aggregate data and conversions
+# GPP
+corman.gpp <- corman.gpp %>%
+  mutate(DateTime = ymd(DateTime),
+         Year = year(DateTime),
+         Month = month(DateTime),
+         GPP = GPP * 12/32) %>%
+  group_by(Lake, Year, Month) %>%
+  summarise(
+    GPP_sd = sd(GPP, na.rm = T),
+    GPP = median(GPP, na.rm = T))
+table(is.na(corman.gpp$GPP)) # 12 missing data points, imputed median GPP for a given lake
+corman.gpp.filled <- corman.gpp %>%
+  group_by(Lake) %>%
+  mutate(GPP = ifelse(is.na(GPP), median(GPP, na.rm = TRUE), GPP)) %>%
+  ungroup()
+
+# sd GPP > median GPP
+table(corman.gpp.filled$GPP_sd > corman.gpp.filled$GPP)
+# sd of monthly GPP is generally greater than median values!
+
+# stream nutrients
+corman.stream.nutrients <- corman.stream.nutrients %>%
+  mutate(DateTime = parse_date_time(Datetime, orders = c("ymd", "ymd HMS")),Year = year(DateTime),
+         Month = month(DateTime)) %>%
+  group_by(Lake, Year, Month) %>%
+  summarise(
+    TP = median(TP, na.rm = T),
+    TN = median(TN, na.rm = T))
+# missing 4 observations; imputed the median value for the lake/stream
+# row 22 Feeagh TN and TP in Nov 2013
+# row 97 Trout TN in June 2013
+# row 98 Trout TP in June August
+# row 100 Trout TP in July 2013
+corman.stream.nutrients.filled <- corman.stream.nutrients %>%
+  group_by(Lake) %>%
+  mutate(TN = ifelse(is.na(TN), median(TN, na.rm = TRUE), TN),
+         TP = ifelse(is.na(TP), median(TP, na.rm = TRUE), TP)) %>%
+  ungroup()
+
+## combine data sets
+corman2 <- merge(corman.gpp.filled,
+                 corman.stream.nutrients.filled, by = c("Lake", "Year", "Month"))
+corman2 <- merge(corman2, corman.vol, by = "Lake")
+
+# add calculated zmix
+corman2$zmix <- 10^(-0.515 + log10(corman2$DOC_mgL) + 0.115 * log10(2 * sqrt(corman2$SA/pi + 0.991)))
+corman2$zmix <- ifelse(corman2$zmix > corman2$z, corman2$z, corman2$zmix)
+# if zmix > z, set zmix to z; this is also included in models
+
+```
+
+
+
+
+overview figure of Corman et al GPP data and relationship to nutrient loads; note the lack of relationship at low loads indicating decoupling of supply and production (the models don't capture these data well but that is okay because they have no mechanisms to do so; models are very dependent on loads to model GPP)
+
+```{r plot corman data for overview ,dpi = 500, fig.width=10, fig.height=4}
+
+c1 <- corman2 %>%
+  ggplot(aes(GPP)) + 
+    geom_density(col = "black", fill = "grey80") + 
+  geom_vline(xintercept = quantile(corman2$GPP, c(0.0275, 0.5, 0.975)), 
+             col = "red", lty = "dashed") + 
+  labs(x = expression("Median monthly GPP mg C L"^-1 ~ "day"^-1), 
+       y = "Density")
+
+c2 <- corman2 %>%
+  ggplot(aes(GPP_sd)) + 
+    geom_density(col = "black", fill = "grey80") + 
+  geom_vline(xintercept = quantile(corman2$GPP, c(0.0275, 0.5, 0.975)), 
+             col = "red", lty = "dashed") + 
+  labs(x = expression("Std.dev monthly GPP mg C L"^-1 ~ "day"^-1), 
+       y = "Density")
+
+c3 <- corman2 %>%
+  ggplot(aes(TP, GPP)) + 
+  geom_point() + 
+  labs(x = expression("Median stream TP mg P m"^-3),
+    y = expression("Median monthly GPP mg C L"^-1 ~ "day"^-1)) 
+
+c4 <- corman2 %>%
+  ggplot(aes(TN, GPP)) + 
+  geom_point() + 
+  labs(x = expression("Median stream TN mg N m"^-3),
+    y = expression("Median monthly GPP mg C L"^-1 ~ "day"^-1)) 
+
+c1 + c2 + c3 + c4 + plot_layout(ncol = 4)
+
+```
+
+
+### Create grid of parameter values
+
+Ranges: these are based on ranges observed in the Edwards et al data set for phytoplankton. I expanded the ranges a little to encompass a wider range of possible scenarios.
+
+-   $K_P$ = 1 to 20 ug L^-1^
+
+-   $K_N$ = 10 to 50 ug L^-1^
+
+-   $V_{maxP}$ = 0.1 to 1 mg P (mg C)^-1^
+
+-   $V_{maxN}$ = 0.1 to 1 mg N (mg C)^-1^
+
+-   $Q_{minP}$ = 0.01 to 0.5 mg P (mg C)^-1^
+
+-   $Q_{minN}$ 0.01 to 0.5 mg N (mg C)^-1^
+
+```{r parameter grids}
+# michaelis menten grid
+grid <- expand.grid(
+  KP1 = seq(1, 10, 1),
+  KN1 = seq(5, 20, 5), 
+  minQN1 = c(0.01, 0.05, 0.1, 0.3),
+  minQP1 = c(0.01, 0.05, 0.1, 0.3)
+)
+
+# repeat grid nrow(corman2) times
+grid.new <- grid %>% 
+  slice(rep(1:n(), each = nrow(corman2)))
+
+# add in corman2 data
+grid.new$Lake <- rep(corman2$Lake, nrow(grid))
+grid.new$GPP <- rep(corman2$GPP, nrow(grid))
+grid.new$TN <- rep(corman2$TN, nrow(grid))
+grid.new$TP <- rep(corman2$TP, nrow(grid))
+grid.new$SA <- rep(corman2$SA, nrow(grid))
+grid.new$DOC_mgL <- rep(corman2$DOC_mgL, nrow(grid))
+grid.new$z <- rep(corman2$z, nrow(grid))
+grid.new$z_mix <- rep(corman2$zmix, nrow(grid))
+
+# droop grid
+grid.droop <- expand.grid(
+  KP1 = seq(1, 20, 0.5 ),
+  KN1 = seq(1, 50, 1), 
+  minQN1 = seq(0.1, 5, 0.1),
+  minQP1 = seq(0.1, 5, 0.1),
+  upN1 = c(0.1, , 1),
+  upP1 = c(0.1, 0.5, 1)
+)
+
+# repeat grid nrow(corman2) times
+grid.droop.new <- grid.droop %>% 
+  slice(rep(1:n(), each = nrow(corman2)))
+
+# add in corman2 data
+grid.droop.new$Lake <- rep(corman2$Lake, nrow(grid.droop))
+grid.droop.new$GPP <- rep(corman2$GPP, nrow(grid.droop))
+grid.droop.new$TN <- rep(corman2$TN, nrow(grid.droop))
+grid.droop.new$TP <- rep(corman2$TP, nrow(grid.droop))
+grid.droop.new$SA <- rep(corman2$SA, nrow(grid.droop))
+grid.droop.new$DOC_mgL <- rep(corman2$DOC_mgL, nrow(grid.droop))
+grid.droop.new$z <- rep(corman2$z, nrow(grid.droop))
+grid.droop.new$z_mix <- rep(corman2$zmix, nrow(grid.droop))
+
+
+```
+
+```{r set up phytoplankton traits, message=F, warning=F}
+### averages
+
+## michaelis-menten model for mean phytoplankton traits
+params.mich <- c(
+  # lake parameters
+  SA= NA,		# lake surface area in km2
+  #zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  DOC = NA,
+  z = NA,
+  
+  # algae physiology parameters
+  umax1 = 0.665,
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KP1 = NA, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = NA, # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = NA, # nitrogen half sat constant in mg N m^-3 
+  QN1 = NA # algae cell N quota in mg N mg^-1 C^-1 
+)
+names(params.mich) <- c("SA", "Pin", "Nin", "DOC", "z", "umax1", "lA", "v", 
+                        "KP1",  "QP1", "KN1",  "QN1")
+names(params.mich)
+params.mich <- unlist(params.mich)
+
+## droop model for mean phytoplankton traits
+
+params.droop <- c(
+  # lake parameters
+  SA= NA,		# lake surface area in km2
+  #zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  DOC = NA,
+  z = NA,
+ 
+  # algae physiology parameters
+  umax1 = 0.665,
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KP1 = NA, # phosphorus half sat constant in mg P m^-3 f
+  minQP1 = NA, # algae cell P quota in mg P mg^-1 C^-1 f
+  upP1 = NA, # max uptake rate P per day in mg P mg C^-1 day^-1 
+  KN1 = NA, # nitrogen half sat constant in mg N m^-3 
+  minQN1 = NA, # algae cell N quota in mg N mg^-1 C^-1 f
+  upN1 = NA # max uptake rate N per day in mg N mg C^-1 day^-1 
+)
+
+
+
+names(params.droop) <- c("SA", "Pin", "Nin", "DOC", "z", "umax1", "lA", "v", "KP1",
+                         "minQP1", "upP1", "KN1","minQN1", "upN1")
+names(params.droop)
+params.droop <- unlist(params.droop)
+
+```
+
+## Run models
+
+### Michaelis-Menten model
+
+Run the MM model across all grid values and return output; combine estimated GPP with known GPP and calculate RMSE.\
+This code chunk takes \>1hr to run so I've saved the output to an external file for easier loading. It is all stored on the Github repo so you should be able to load it easily.
+
+```{r run MM across input grid}
+#takes over an hour to run!!
+# (start <- Sys.time())
+# mm.grid <- lapply(1:nrow(grid.new), function(i){
+#   # indexing
+#   params.mich["SA"] = grid.new[i, "SA"]
+#   params.mich["DOC"] = grid.new[i, "DOC_mgL"]
+#   params.mich["z"] = grid.new[i, "z"]
+#   params.mich["KP1"] = grid.new[i, "KP1"]
+#   params.mich["KN1"] = grid.new[i, "KN1"]
+#   params.mich["QP1"] = grid.new[i, "minQP1"]
+#   params.mich["QN1"] = grid.new[i, "minQN1"]
+#   params.mich["Pin"] = grid.new[i, "TP"]
+#   params.mich["Nin"] = grid.new[i, "TN"]
+#   # starting values
+#   y <- c("A1" = 100, "P" = grid.new[i, "TP"], "N" = grid.new[i, "TN"])
+#   run <- ode(y, times, parms = params.mich, func = mich.single)
+#   return(run[max(times),])
+# })
+# # convert to df
+# mm.grid <- do.call(rbind, mm.grid)
+# mm.grid <- as_data_frame(mm.grid)
+# (end <- Sys.time())
+# (time.elapsed <- (end - start))
+
+# # grids take too long to run, gonna save to r data file and reload for convenience
+#save(mm.grid,file = "temporary_model_files/corman2023_MM_gridsearch_zmix.Rdata")
+load("temporary_model_files/corman2023_MM_gridsearch_zmix.Rdata")
+# add to grid
+grid.new$est_GPP <- mm.grid$GPP
+ 
+```
+
+
+Figure shows histogram for RMSE scores for all scenarios; red lines show 95% conf. intervals and median RMSE. For some bizarre reason the 50th and 97.5th quantiles are the same.
+The low RMSE values are not actually indicative of good model fit; the estimated GPP is just so low that errors are relatively small.
+
+```{r calculate RMSE for MM}
+
+# add ID label to group
+grid.new$group.ID <- rep(1:nrow(grid), each= nrow(corman2))
+
+# calculate RMSE
+grid.new.rmse <- grid.new %>%
+  group_by(group.ID, KP1, KN1, minQN1, minQP1) %>%
+  summarise(RMSE = sqrt( mean((GPP -  est_GPP)^2)  ))
+# check distribution of RMSE
+hist(grid.new.rmse$RMSE, 
+     main = "Distribution of RMSE for \n Michaelis-Menten model", 
+     xlab = "RMSE")
+abline(v = quantile(grid.new.rmse$RMSE, probs = c(0.025, 0.5, 0.975)), 
+       col = "red", lty = "dashed")
+# range(grid.new.rmse$RMSE)
+# mean(grid.new.rmse$RMSE)
+#which.min(grid.new.rmse$RMSE)
+# select best parameters
+#select best parameters
+# get best 10 percentile of runs
+quantile(grid.new.rmse$RMSE, 0.1)
+best.parm <- grid.new.rmse[grid.new.rmse$RMSE < quantile(grid.new.rmse$RMSE, 0.1),  ]
+nrow(best.parm)
+hist(grid.new.rmse$RMSE[grid.new.rmse$RMSE < quantile(grid.new.rmse$RMSE, 0.1)])
+```
+
+Plot below shows RMSE for each scenario; the "best" scenario is highlighted in red.
+Note the influence of P-parameters on RMSE. This aligns well with the sensitivity analysis which is nice.
+
+```{r plot RMSE and P for MM, dpi = 500, fig.width=10, fig.height=3}
+
+Kp.rmse <- grid.new.rmse %>%
+  ggplot(aes(KP1, RMSE)) + geom_point(alpha = 0.3) + 
+  geom_point(inherit.aes = F, data = best.parm, 
+             aes(x = KP1, y = RMSE), col = "red", size = 2) + 
+  labs(x = expression("K"["P"] ~ " ug L"^-1), y = "RMSE")
+
+Kn.rmse <- grid.new.rmse %>%
+  ggplot(aes(KN1, RMSE)) + geom_point(alpha = 0.3) + 
+   geom_point(inherit.aes = F, data = best.parm, 
+             aes(x = KN1, y = RMSE), col = "red", size = 2) + 
+  labs(x = expression("K"["N"] ~ " ug L"^-1), y = NULL)
+
+QP.rmse <- grid.new.rmse %>%
+  ggplot(aes(minQP1, RMSE)) + geom_point(alpha = 0.3) + 
+   geom_point(inherit.aes = F, data = best.parm, 
+             aes(x = minQP1, y = RMSE), col = "red", size = 2) + 
+  labs(x = expression("minQ"["P"] ~ "in mg P (mg C)"^-1), y = NULL)
+
+QN.rmse <- grid.new.rmse %>%
+  ggplot(aes(minQN1, RMSE)) + geom_point(alpha = 0.3) + 
+   geom_point(inherit.aes = F, data = best.parm, 
+             aes(x = minQN1, y = RMSE), col = "red", size = 2) + 
+  labs(x = expression("minQ"["N"] ~ "in mg N (mg C)"^-1), y = NULL)
+
+Kp.rmse + Kn.rmse + QP.rmse + QN.rmse + plot_layout(ncol = 4)
+
+```
+
+Re-run the model with the best parameters as determined by the grid search above.
+
+```{r rerun MM model with the best parameters}
+
+# create grid with best parameter values and run it
+grid.best <- best.parm %>% 
+  slice(rep(1:n(), each = nrow(corman2)))
+# add measured data
+grid.best$SA <- rep(corman2$SA, nrow(best.parm))
+grid.best$z <- rep(corman2$z, nrow(best.parm))
+grid.best$DOC_mgL <- rep(corman2$DOC_mgL, nrow(best.parm))
+grid.best$GPP <- rep(corman2$GPP, nrow(best.parm))
+grid.best$GPP_sd - rep(corman2$GPP_sd, nrow(best.parm))
+grid.best$Lake <- rep(corman2$Lake, nrow(best.parm))
+grid.best$TN <- rep(corman2$TN, nrow(best.parm))
+grid.best$TP <- rep(corman2$TP, nrow(best.parm))
+
+
+best.runs <- lapply(1:nrow(grid.best), function(i){
+  # indexing
+  params.mich["SA"] = pull(grid.best[i, "SA"])
+  params.mich["DOC"] =  pull(grid.best[i, "DOC_mgL"])
+  params.mich["z"] =  pull(grid.best[i, "z"])
+  params.mich["KP1"] = pull(best.parm[1, "KP1"])
+  params.mich["KN1"] = pull(best.parm[1, "KN1"])
+  params.mich["QP1"] = pull(best.parm[1, "minQP1"])
+  params.mich["QN1"] = pull(best.parm[1, "minQN1"])
+  params.mich["Pin"] = pull(grid.best[i, "TP"])
+  params.mich["Nin"] = pull(grid.best[i, "TN"])
+  # starting values
+  y <- c("A1" = 100, "P" = pull(grid.best[i, "TP"]), "N" = pull(grid.best[i, "TN"]))
+  run <- ode(y, times, parms = params.mich, func = mich.single)
+  return(run[max(times),])
+})
+# convert to df
+best.runs <- do.call(rbind, best.runs)
+best.runs <- as_data_frame(best.runs)
+best.runs <- rename(best.runs, est_GPP = GPP)
+# combine with original df
+best.runs$GPP <-  rep(corman2$GPP, nrow(best.parm))
+best.runs$GPP_sd <-  rep(corman2$GPP_sd, nrow(best.parm))
+best.runs$Lake <-  rep(corman2$Lake, nrow(best.parm))
+best.runs$Year <-  rep(corman2$Year, nrow(best.parm))
+best.runs$Month <-  rep(corman2$Month, nrow(best.parm))
+# calculate medians and standard devs.
+
+```
+
+figures show (a) modelled vs. measured GPP, (b) modelled GPP vs TP loads, (c) modelled GPP vs TN loads; dashed line shows 1:1 relationship. Note the log10 axes!
+
+modelled vs. measured GPP has a an Rsquated of 0.27 with p<0.001 (log10(x + 1e3) transformed!)
+
+
+```{r compare output of best model and real world data, dpi = 500, fig.width=13, fig.height=5}
+
+best.run.plt1 <- best.run %>%
+  ggplot() + 
+  geom_point(aes(GPP, est_GPP), size = 2.5) + 
+  geom_abline(slope = 1, intercept = 0, lty = "dashed", lwd = 1) + 
+  geom_smooth(aes(GPP, est_GPP), method = "lm") + 
+  labs(x = expression("Median monthly measured GPP mg C L"^-3 ), 
+       y = expression("Median monthly modelled GPP mg C m"^-3)) + 
+  scale_y_log10() + scale_x_log10()
+
+best.run.plt2 <- best.run %>%
+  ggplot() + 
+  geom_point(aes(TP, est_GPP), size = 2.5) + 
+  geom_abline(slope = 1, intercept = 0, lty = "dashed", lwd = 1) + 
+  labs(y = expression("Median monthly modelled GPP mg C L"^-3 ), 
+       x = expression("Median monthly stream TP mg m"^-3)) + 
+  scale_y_log10() + scale_x_log10()
+
+best.run.plt3 <- best.run %>%
+  ggplot() + 
+  geom_point(aes(TN, est_GPP), size = 2.5) + 
+  geom_abline(slope = 1, intercept = 0, lty = "dashed", lwd = 1) + 
+  labs(y = expression("Median monthly modelled GPP mg C L"^-3 ), 
+       x = expression("Median monthly stream TN mg m"^-3)) + 
+  scale_y_log10() + scale_x_log10()
+
+best.run.plt1 + best.run.plt2 + best.run.plt3 + plot_layout(ncol = 3)
+
+# some stats for text
+summary(lm(log10(est_GPP + 1e-3) ~ log10(GPP + 1e-3), data =best.run))
+#cor.test(best.run$A1, best.run$GPP)
+
+```
+ignore the Droop model output for now, will run overnight!
+
+### Droop model
+
+Run the MM model across all grid values and return output; combine estimated GPP with known GPP and calculate RMSE.
+
+```{r run droop model across inflow loads and parameter values}
+
+#takes over an hour to run!!
+(start <- Sys.time())
+# droop.grid <- lapply(1:nrow(grid.droop.new), function(i){
+#   # indexing
+#   print(i)
+#   params.droop["SA"] = grid.droop.new[i, "SA"]
+#   params.droop["DOC"] = grid.droop.new[i, "DOC_mgL"]
+#   params.droop["z"] = grid.droop.new[i, "z"]
+#   params.droop["KP1"] = grid.droop.new[i, "KP1"]
+#   params.droop["KN1"] = grid.droop.new[i, "KN1"]
+#   params.droop["minQP1"] = grid.droop.new[i, "minQP1"]
+#   params.droop["minQN1"] = grid.droop.new[i, "minQN1"]
+#   params.droop["upP1"] = grid.droop.new[i, "upP1"]
+#   params.droop["upN1"] = grid.droop.new[i, "upN1"]
+#   params.droop["Pin"] = grid.droop.new[i, "TP"]
+#   params.droop["Nin"] = grid.droop.new[i, "TN"]
+#   # starting values
+#   y <- c("A1" = 100, "P" = grid.droop.new[i, "TP"],
+#          "N" = grid.droop.new[i, "TN"],
+#          "QP1" = 0.015,
+#          "QN1" = 0.1)
+#   run <- ode(y, times, parms = params.droop, func = droop.single)
+#   return(run[max(times),])
+# })
+# # convert to df
+# droop.grid <- do.call(rbind, droop.grid)
+# droop.grid <- as_data_frame(droop.grid)
+# (end <- Sys.time())
+# (time.elapsed <- (end - start))
+# 
+# # grids take too long to run, gonna save to r data file and reload for convenience
+# save(droop.grid,file = "temporary_model_files/corman2023_droop_gridsearch_zmix.Rdata")
+load("temporary_model_files/corman2023_droop_gridsearch_zmix.Rdata")
+# 
+# # add to grid
+grid.droop.new$est_GPP <- droop.grid$GPP
+
+```
+
+Calculate RMSE and find best parameters
+
+```{r calculate RMSE and find best parameters for droop model}
+# add ID label to group
+grid.droop.new$group.ID <- rep(1:nrow(grid.droop), each= nrow(corman2))
+
+# calculate RMSE
+grid.droop.new.rmse <- grid.droop.new %>%
+  group_by(group.ID, KP1, KN1, minQN1, minQP1, upP1, upN1) %>%
+  summarise(RMSE = sqrt((mean(GPP - est_GPP)^2)))
+# check distribution of RMSE
+# check distribution of RMSE
+hist(grid.droop.new.rmse$RMSE,
+     main = "Distribution of RMSE for \n Droop model",
+     xlab = "RMSE")
+abline(v = quantile(grid.droop.new.rmse$RMSE, probs = c(0.025, 0.5, 0.975)),
+       col = "red", lty = "dashed")
+# range(grid.droop.new.rmse$RMSE)
+# mean(grid.droop.new.rmse$RMSE)
+#which.min(grid.droop.new.rmse$RMSE)
+#which.min(grid.droop.new.rmse$RMSE)
+# select best parameters
+# lower 2.5th percentiles of runs
+quantile(grid.droop.new.rmse$RMSE, 0.0275)
+best.parm.droop <- grid.droop.new.rmse[grid.droop.new.rmse$RMSE < quantile(grid.droop.new.rmse$RMSE, 0.0275),  ]
+nrow(best.parm.droop)
+```
+
+
+
+```{r plot RMSE and P for droop, echo = T, dpi = 500, fig.width=13, fig.height=5}
+# 
+Kp.droop.rmse <- grid.droop.new.rmse %>%
+  ggplot(aes(KP1, RMSE)) + geom_point(alpha = 0.3) +
+  geom_point(inherit.aes = F, data = best.parm.droop,
+             aes(x = KP1, y = RMSE), col = "red", size = 1) +
+  labs(x = expression("K"["P"] ~ " ug L"^-1), y = "RMSE")
+
+Kn.droop.rmse <- grid.droop.new.rmse %>%
+  ggplot(aes(KN1, RMSE)) + geom_point(alpha = 0.3) +
+    geom_point(inherit.aes = F, data = best.parm.droop,
+             aes(x = KN1, y = RMSE), col = "red", size = 1) +
+  labs(x = expression("K"["N"] ~ " ug L"^-1), y = NULL)
+
+QP.droop.rmse <- grid.droop.new.rmse %>%
+  ggplot(aes(minQP1, RMSE)) + geom_point(alpha = 0.3) +
+    geom_point(inherit.aes = F, data = best.parm.droop,
+             aes(x = minQP1, y = RMSE), col = "red", size = 1) +
+  labs(x = expression("minQ"["P"] ~ "in mg P (mg C)"^-1), y = NULL)
+
+QN.droop.rmse <- grid.droop.new.rmse %>%
+  ggplot(aes(minQN1, RMSE)) + geom_point(alpha = 0.3) +
+    geom_point(inherit.aes = F, data = best.parm.droop,
+             aes(x = minQN1, y = RMSE), col = "red", size = 1) +
+  labs(x = expression("minQ"["N"] ~ "in mg N (mg C)"^-1), y = NULL)
+
+uP.droop.rmse <- grid.droop.new.rmse %>%
+  ggplot(aes(upP1, RMSE)) + geom_point(alpha = 0.3) +
+    geom_point(inherit.aes = F, data = best.parm.droop,
+             aes(x = upP1, y = RMSE), col = "red", size = 1) +
+  labs(x = expression("uptake P mg P (mg C)"^-1), y = NULL)
+
+uN.droop.rmse <- grid.droop.new.rmse %>%
+  ggplot(aes(upN1, RMSE)) + geom_point(alpha = 0.3) +
+    geom_point(inherit.aes = F, data = best.parm.droop,
+             aes(x = upN1, y = RMSE), col = "red", size = 1) +
+  labs(x = expression("uptake N mg P (mg C)"^-1), y = NULL)
+
+Kp.droop.rmse + Kn.droop.rmse + QP.droop.rmse + QN.droop.rmse + uP.droop.rmse + uN.droop.rmse +
+  plot_layout(ncol = 6)
+
+```
+
+Re-run model with best parameters
+
+```{r rerun droop  model with the best parameters}
+
+# create grid with best parameter values and run it
+grid.droop.best <- best.parm.droop %>% 
+  slice(rep(1:n(), each = nrow(corman2)))
+# add measured data
+grid.droop.best$SA <- rep(corman2$SA, nrow(best.parm.droop))
+grid.droop.best$z <- rep(corman2$z, nrow(best.parm.droop))
+grid.droop.best$DOC_mgL <- rep(corman2$DOC_mgL, nrow(best.parm.droop))
+grid.droop.best$GPP <- rep(corman2$GPP, nrow(best.parm.droop))
+grid.droop.best$Lake <- rep(corman2$Lake, nrow(best.parm.droop))
+grid.droop.best$TN <- rep(corman2$TN, nrow(best.parm.droop))
+grid.droop.best$TP <- rep(corman2$TP, nrow(best.parm.droop))
+
+
+best.run.droop <- lapply(1:nrow(grid.droop.best[-160,]), function(i){
+  # indexing
+  print(i)
+  params.droop["SA"] = pull(grid.droop.best[i, "SA"])
+  params.droop["DOC"] = pull(grid.droop.best[i, "DOC_mgL"])
+  params.droop["z"] = pull(grid.droop.best[i, "z"])
+  params.droop["KP1"] = pull(grid.droop.best[i, "KP1"])
+  params.droop["KN1"] = pull(grid.droop.best[i, "KN1"])
+  params.droop["minQP1"] = pull(grid.droop.best[i, "minQP1"])
+  params.droop["minQN1"] = pull(best.parm.droop[i, "minQN1"])
+  params.droop["upP1"] = pull(grid.droop.best[i, "upP1"])
+  params.droop["upN1"] = pull(grid.droop.best[i, "upN1"])
+  params.droop["Pin"] = pull(grid.droop.best[i, "TP"])
+  params.droop["Nin"] = pull(grid.droop.best[i, "TN"])
+  # starting values
+  y <- c("A1" = 100, "P" = pull(grid.droop.best[i, "TP"]),
+         "N" = pull(grid.droop.best[i, "TN"]),
+          "QP1" = 0.015,"QN1" = 0.1)
+  run <- ode(y, times, parms = params.droop, func = droop.single)
+  return(run[max(times),])
+})
+# convert to df
+best.run.droop <- do.call(rbind, best.run.droop)
+best.run.droop <- as_data_frame(best.run.droop)
+best.run.droop <- rename(best.run.droop, est_GPP = GPP)
+# combine with original df
+#best.run.droop <- bind_cols(best.run.droop, corman2)
+```
+
+Plot comparison of RMSE between Corman et al 2023 data set and the output from the Droop model.
+
+The Droop model does a garbage job at modelling GPP even with the "best scenario" parameters. Either the grid search didn't work or there are some problems with the model (I think it is the former; the models work but not for what we are trying to do here...)
+
+```{r compare output of best droop model and real world data, dpi = 500, fig.width=13, fig.height=5}
+
+best.run.droop.plt1 <- best.run.droop %>%
+  ggplot() +
+  geom_point(aes(GPP, est_GPP), size = 2.5) +
+  geom_abline(slope = 1, intercept = 0, lty = "dashed", lwd = 1) +
+  labs(x = expression("Median monthly measured GPP mg C L"^-1 ),
+       y = expression("Median monthly modelled GPP mg C m"^-1))
+
+best.run.droop.plt2 <- best.run.droop %>%
+  ggplot() +
+  geom_point(aes(TP, est_GPP), size = 2.5) +
+  geom_abline(slope = 1, intercept = 0, lty = "dashed", lwd = 1) +
+  labs(y = expression("Median monthly modelled GPP mg C L"^-1 ),
+       x = expression("Median monthly stream TP mg m"^-3))
+
+best.run.droop.plt3 <- best.run.droop %>%
+  ggplot() +
+  geom_point(aes(TN, est_GPP), size = 2.5) +
+  geom_abline(slope = 1, intercept = 0, lty = "dashed", lwd = 1) +
+  labs(y = expression("Median monthly modelled GPP mg C L"^-1 ),
+       x = expression("Median monthly stream TP mg m"^-3))
+
+best.run.droop.plt1 + best.run.droop.plt2 + best.run.droop.plt3 + plot_layout(ncol = 3)
+
+# some stats for text
+#summary(lm(GPP ~ A1, data =best.run.droop))
+#cor.test(best.run.droop$A1, best.run.droop$GPP)
+
+```

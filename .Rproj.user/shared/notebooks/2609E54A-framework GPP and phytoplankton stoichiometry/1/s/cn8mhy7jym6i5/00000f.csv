@@ -1,4 +1,4 @@
-"0","pck <- c(""deSolve"", ""tidyverse"", ""cowplot"", ""ggsci"", ""ggpubr"", ""ggtern"")"
+"0","pck <- c(""deSolve"", ""tidyverse"", ""cowplot"", ""wesandersen"", ""ggpubr"", ""ggtern"")"
 "0","lapply(pck, require, character.only = T)"
 "1","[[1]]
 "
@@ -27,7 +27,7 @@
 "1","[[4]]
 "
 "1","[1]"
-"1"," TRUE"
+"1"," FALSE"
 "1","
 "
 "1","
@@ -64,5 +64,5 @@
 "0","traits <- read_csv(""data4input/phyto_traits4models_21June2024.csv"")[,-1]"
 "0",""
 "0","# set up scenarios"
-"0","times <- 1:500"
+"0","times <- 1:10000"
 "0",""

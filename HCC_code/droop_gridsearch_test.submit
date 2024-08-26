@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --mem=4048
+#SBATCH --time=01:00:00
+#SBATCH --job-name=R_droop_grid_search
+#SBATCH --error=R_droop_grid_search.%J.err
+#SBATCH --output=R_droop_grid_search.%J.out
+
+module load R/4.2
+
+Rscript droop_grid_search.R

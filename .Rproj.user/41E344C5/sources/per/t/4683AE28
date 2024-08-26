@@ -1,0 +1,26 @@
+{
+    "id": "4683AE28",
+    "path": "~/GitHub/WoodStoich24_lake_models/models/mich_single_noLight.R",
+    "project_path": "models/mich_single_noLight.R",
+    "type": "r_source",
+    "hash": "1056526992",
+    "contents": "",
+    "dirty": false,
+    "created": 1724163130012.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "46,64",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1724163142,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1724163142724,
+    "read_only": false,
+    "read_only_alternatives": []
+}
