@@ -1,0 +1,33 @@
+{
+    "id": "4CEBD889",
+    "path": "~/GitHub/WoodStoich24_lake_models/framework GPP and phytoplankton stoichiometry.Rmd",
+    "project_path": "framework GPP and phytoplankton stoichiometry.Rmd",
+    "type": "r_markdown",
+    "hash": "2966412362",
+    "contents": "",
+    "dirty": false,
+    "created": 1724171192289.0,
+    "source_on_save": false,
+    "relative_order": 3,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "650,0",
+        "scrollLine": "650",
+        "rmdVisualMode": "false",
+        "rmdVisualWrapConfigured": "true",
+        "docOutlineVisible": "1",
+        "rmdVisualCollapsedChunks": "",
+        "rmdVisualModeLocation": "25495:11631.8525390625",
+        "last_setup_crc32": ""
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1724881621,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1724881621944,
+    "read_only": false,
+    "read_only_alternatives": []
+}
