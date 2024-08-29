@@ -42,7 +42,7 @@ mich.single <- function(times, y, params) {
   V = SA * 1e6 * zmix
   # biomass specific growth for entire mixed layer
   # species 1
-  prod1= umax1 * (P/(P+KP1))*(N/(N + KN1))	# d-1
+  prod1= umax1 * min((P/(P+KP1)),(N/(N + KN1)))	# d-1
   # gpp rate
   GPP = prod1 * A1/1000 # this is the GPP rate! mg C L^-1 day^-1
 
