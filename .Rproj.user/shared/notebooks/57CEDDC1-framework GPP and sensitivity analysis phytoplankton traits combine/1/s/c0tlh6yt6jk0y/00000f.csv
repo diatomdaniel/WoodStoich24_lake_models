@@ -1,0 +1,4 @@
+"0",""
+"0","gpp.combined <- bind_rows(static.gpp.df, dynamic.gpp.df)"
+"0","gpp.combined$model <- factor(gpp.combined$model, levels = c(""static"", ""dynamic""))"
+"0",""

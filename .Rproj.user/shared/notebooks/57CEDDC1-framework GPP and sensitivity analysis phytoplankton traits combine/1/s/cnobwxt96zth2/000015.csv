@@ -1,0 +1,17 @@
+"0","# combine"
+"0","trait.var.combined <- bind_rows(static.trait.var, dynamic.trait.var)"
+"0","trait.var.combined$model <- factor(trait.var.comined$model, levels = c(""static"", ""dynamic""))"
+"1","[1m[33mError[39m in `$<-`:[22m
+[38;5;246m[33m![38;5;246m Assigned data `factor(trait.var.comined$model, levels = c(""static"", ""dynamic""))` must be
+  compatible with existing data.
+[31m✖[38;5;246m Existing data has 9000 rows.
+[31m✖[38;5;246m Assigned data has 7500 rows.
+[36mℹ[38;5;246m Only vectors of size 1 are recycled.[39m
+[1mCaused by error in `vectbl_recycle_rhs_rows()`:[22m
+[33m![39m Can't recycle input of size 7500 to size 9000.
+Backtrace:
+[90m 1. [39m[1mbase[22m::`$<-`(`*tmp*`, model, value = `<fct>`)
+[90m 2. [39m[1mtibble[22m:::`$<-.tbl_df`(`*tmp*`, model, value = `<fct>`)
+[90m 3. [39mtibble:::tbl_subassign(...)
+[90m 4. [39m[1m[94mtibble:::vectbl_recycle_rhs_rows([39m[22mvalue, fast_nrow(xo), i_arg = NULL, value_arg, call[1m[94m)[39m[22m
+"

@@ -7,7 +7,7 @@
 ### Stoichiometry model using Droop equation
 # Huisman and Weissing 1995, Kelly et al 2014, Hall et al 2007
 # build model
-droop.single <- function(times, y, params) {
+dynamic.stoich <- function(times, y, params) {
   
   # parameters; see below for explanation
   # starting params

@@ -1,0 +1,8 @@
+"0","# load ODE models "
+"0","# saved in external files for convenience"
+"0","# static model with fixed stoichiometry"
+"0","source(""models/static_liebig_no_light.R"") # model 1 in Carly's framework"
+"0","# Droop model"
+"0","source(""models/dynamic_liebig_no_light.R"") # model 3 in Carly's framework"
+"0","# set timesteps"
+"0","times <- 1:1000 # for troubleshooting, initial runs"

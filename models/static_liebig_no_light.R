@@ -10,7 +10,7 @@
 ### nitrogen-phosphorus model
 # Huisman and Weissing 1995, Kelly et al 2014, Jäger and Diehl 2014
 # build model
-mich.single <- function(times, y, params) {
+static.stoich <- function(times, y, params) {
   
   # parameters; see below for explanation
   # starting params

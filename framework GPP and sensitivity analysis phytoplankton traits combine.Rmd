@@ -1,0 +1,970 @@
+---
+title: "GPP framework and phyto traits v2"
+author: "Daniel Gschwentner"
+date: "2024-08-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup
+
+Set up environment, load packages, plotting aesthetics, etc.
+
+```{r include = F, message = F, warning=F}
+# load packages
+pck <- c("deSolve", "tidyverse", "cowplot", "ggthemes", "wesandersen", "ggpubr")
+lapply(pck, require, character.only = T)
+# set plotting theme
+theme_set(theme_solarized(light=F) + 
+          theme(text = element_text(color = "white"), 
+                axis.text = element_text(color = "white"),
+                axis.title = element_text(color = "white"),
+                legend.text = element_text(color = "white"),
+                legend.title = element_text(color = "white"),
+                legend.justification = "center", 
+                legend.position = "bottom"))
+
+```
+
+
+load models, set timesteps
+```{r}
+# load ODE models 
+# saved in external files for convenience
+# static model with fixed stoichiometry
+source("models/static_liebig_no_light.R") # model 1 in Carly's framework
+# Droop model
+source("models/dynamic_liebig_no_light.R") # model 3 in Carly's framework
+# set timesteps
+times <- 1:1000 # for troubleshooting, initial runs
+```
+
+load table with phytoplankton traits; traits are used to parameterize the models
+
+```{r}
+
+traits <- read_csv("data4input/phyto_traits4models_21June2024.csv")[,-1]
+traits
+
+```
+
+### Phytoplankton trait parameterization
+
+parameterize the models for diatoms, green algae, cyanobacteria and "average" algae (average is column 5 in table above)
+
+```{r}
+# average algae static model
+
+static.algae <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  # varies by simulation
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # algae physiology parameters
+  umax1 = traits[12, "average"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "average"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = traits[6, "average"], # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = traits[1, "average"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  QN1 = traits[5, "average"] # algae cell N quota in mg N mg^-1 C^-1 
+)
+names(static.algae) <- c("SA", "zmix", "Pin", "Nin", "umax1", "lA", "v", 
+                        "KP1",  "QP1", "KN1",  "QN1")
+names(static.algae)
+static.algae <- unlist(static.algae)
+
+
+```
+
+
+```{r}
+# diatoms static model
+
+static.diatoms <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  # varies by simulation
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # algae physiology parameters
+  umax1 = traits[12, "diatoms"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "diatoms"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = traits[6, "diatoms"], # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = traits[1, "diatoms"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  QN1 = traits[5, "diatoms"] # algae cell N quota in mg N mg^-1 C^-1 
+)
+names(static.diatoms) <- c("SA", "zmix", "Pin", "Nin", "umax1", "lA", "v", 
+                        "KP1",  "QP1", "KN1",  "QN1")
+names(static.diatoms)
+static.diatoms <- unlist(static.diatoms)
+
+```
+
+
+```{r}
+# green algae static model
+
+static.greens <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  # varies by simulation
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # algae physiology parameters
+  umax1 = traits[12, "greens"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "greens"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = traits[6, "greens"], # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = traits[1, "greens"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  QN1 = traits[5, "greens"] # algae cell N quota in mg N mg^-1 C^-1 
+)
+names(static.greens) <- c("SA", "zmix", "Pin", "Nin", "umax1", "lA", "v", 
+                          "KP1",  "QP1", "KN1",  "QN1")
+names(static.greens)
+static.greens <- unlist(static.greens)
+
+```
+
+
+```{r}
+# cyanobacteria static model
+
+static.cyanos <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  # varies by simulation
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # algae physiology parameters
+  umax1 = traits[12, "cyanos"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "cyanos"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = traits[6, "cyanos"], # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = traits[1, "cyanos"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  QN1 = traits[5, "cyanos"] # algae cell N quota in mg N mg^-1 C^-1 
+)
+names(static.cyanos) <- c("SA", "zmix", "Pin", "Nin", "umax1", "lA", "v",
+                          "KP1",  "QP1", "KN1",  "QN1")
+names(static.cyanos)
+static.cyanos <- unlist(static.cyanos)
+
+```
+
+
+```{r}
+
+# average algae dynamic model
+
+dynamic.algae <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # algae physiology parameters
+  umax1 = traits[12, "average"],
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "average"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  minQP1 = traits[6, "average"], # algae cell P quota in mg P mg^-1 C^-1 f
+  upP1 = traits[4, "average"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  KN1 = traits[1, "average"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  minQN1 = traits[5, "average"], # algae cell N quota in mg N mg^-1 C^-1 f
+  upN1 = traits[3, "average"] # max uptake rate N per day in mg N mg C^-1 day^-1 
+)
+
+names(dynamic.algae) <- c("SA", "zmix", "Pin", "Nin", 
+                             "umax1", "lA", "v",
+                             "KP1", "minQP1", "upP1", "KN1",
+                             "minQN1", "upN1")
+names(dynamic.algae)
+dynamic.algae <- unlist(dynamic.algae)
+
+```
+
+
+```{r}
+
+# diatoms dynamic model
+
+dynamic.diatoms <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # algae physiology parameters
+  umax1 = traits[12, "diatoms"],
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "diatoms"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  minQP1 = traits[6, "diatoms"], # algae cell P quota in mg P mg^-1 C^-1 f
+  upP1 = traits[4, "diatoms"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  KN1 = traits[1, "diatoms"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  minQN1 = traits[5, "diatoms"], # algae cell N quota in mg N mg^-1 C^-1 f
+  upN1 = traits[3, "diatoms"] # max uptake rate N per day in mg N mg C^-1 day^-1 
+)
+
+names(dynamic.diatoms) <- c("SA", "zmix", "Pin", "Nin", 
+                             "umax1", "lA", "v","KP1", "minQP1", "upP1", "KN1",
+                             "minQN1", "upN1")
+names(dynamic.diatoms)
+dynamic.diatoms <- unlist(dynamic.diatoms)
+
+```
+
+
+```{r}
+
+# greens dynamic model
+
+dynamic.greens <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # algae physiology parameters
+  umax1 = traits[12, "greens"],
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "greens"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  minQP1 = traits[6, "greens"], # algae cell P quota in mg P mg^-1 C^-1 f
+  upP1 = traits[4, "greens"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  KN1 = traits[1, "greens"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  minQN1 = traits[5, "greens"], # algae cell N quota in mg N mg^-1 C^-1 f
+  upN1 = traits[3, "greens"] # max uptake rate N per day in mg N mg C^-1 day^-1 
+)
+
+names(dynamic.greens) <- c("SA", "zmix", "Pin", "Nin", 
+                             "umax1", "lA", "v", "KP1", "minQP1", "upP1", "KN1",
+                             "minQN1", "upN1")
+names(dynamic.greens)
+dynamic.greens <- unlist(dynamic.greens)
+
+```
+
+```{r}
+
+# cyanos dynamic model
+
+dynamic.cyanos <- c(
+  # lake parameters
+  SA= 1,		# lake surface area in km2
+  zmix = 2, # lake mixing depth in m
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+
+  # algae physiology parameters
+  umax1 = traits[12, "cyanos"],
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "cyanos"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  minQP1 = traits[6, "cyanos"], # algae cell P quota in mg P mg^-1 C^-1 f
+  upP1 = traits[4, "cyanos"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  KN1 = traits[1, "cyanos"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  minQN1 = traits[5, "cyanos"], # algae cell N quota in mg N mg^-1 C^-1 f
+  upN1 = traits[3, "cyanos"] # max uptake rate N per day in mg N mg C^-1 day^-1 
+)
+
+names(dynamic.cyanos) <- c("SA", "zmix", "Pin", "Nin", 
+                             "umax1", "lA", "v", "KP1", 
+                            "minQP1", "upP1", "KN1", "minQN1", "upN1")
+names(dynamic.cyanos)
+dynamic.cyanos <- unlist(dynamic.cyanos)
+
+
+```
+
+## Run models
+
+### Run models across co0-varying nutrient loads to generate patterns of GPP
+
+generate loads
+
+```{r}
+
+# nutrient loads
+# Olson&Jones use 20 to 500 for P. Use similar values
+# for TP: TP from 2018-219 NLA stream assessment ranges from 2 to 950 ugL with 25th and 7th percentiles of 23 and 133 ugL. DG, August 2024
+# for TN: TN from 2018-2019 NLA Stream Assessment ranges from 22 to 22,000 ugL with 25th and 75th percentiles of 300 and 14,000 ug L; DG, August 2024
+loads <- expand.grid(Pin = seq(20, 500, 50),
+                                Nin = seq(100, 15000, 500))
+
+```
+
+static model
+
+```{r}
+
+## static model
+# apply over scenarios and algal groups
+static.gpp <-  lapply(list(static.algae, static.diatoms, static.greens, static.cyanos), function(x) {
+  params <- x
+  lapply(1:nrow(loads), function(i) {
+    params["Pin"] = loads[i, "Pin"]
+    params["Nin"] = loads[i, "Nin"]
+    y <- c("A1" = 100, "P" = loads[i, "Pin"],"N" = loads[i, "Nin"])
+    run <- ode(y, times, parms = params, func = static.stoich)
+    return(run[max(times),])
+  })
+})
+# extract from list and convert to data-frame
+static.gpp.average <- as_data_frame(do.call(rbind, static.gpp[[1]]))
+static.gpp.diatoms <- as_data_frame(do.call(rbind, static.gpp[[2]]))
+static.gpp.greens <- as_data_frame(do.call(rbind, static.gpp[[3]]))
+static.gpp.cyanos <- as_data_frame(do.call(rbind, static.gpp[[4]]))
+
+# bind together
+static.gpp.df <- bind_rows(static.gpp.average, static.gpp.diatoms, static.gpp.greens, static.gpp.cyanos) %>%
+  mutate(model = rep("static", nrow(loads) * 4),
+         species = rep(c("average", "diatoms", "greens", "cyanos"), each = nrow(loads)),
+         Pin = rep(loads$Pin, 4), 
+         Nin = rep(loads$Nin, 4))
+static.gpp.df$species <- factor(static.gpp.df$species, levels = c("average", "diatoms", "greens", "cyanos"))
+
+# # sneak peak of data
+# static.gpp.df %>% ggplot(aes(Pin, Nin, fill = GPP)) + 
+#   geom_raster() + facet_wrap(species~.) + 
+#   scale_fill_viridis_c()
+
+
+```
+
+dynamic model
+
+```{r}
+
+# dynamic model
+# apply over scenarios and algal groups
+dynamic.gpp <-  lapply(list(dynamic.algae, dynamic.diatoms, dynamic.greens, dynamic.cyanos), function(x) {
+  params <- x
+  lapply(1:nrow(loads), function(i) {
+    params["Pin"] = loads[i, "Pin"]
+    params["Nin"] = loads[i, "Nin"]
+    y <- c("A1" = 100, "P" = loads[i, "Pin"],"N" = loads[i, "Nin"], "QP1" = 0.015, "QN1" = 0.1)
+    run <- ode(y, times, parms = params, func = dynamic.stoich)
+    return(run[max(times),])
+  })
+})
+# extract from list and convert to data-frame
+dynamic.gpp.average <- as_data_frame(do.call(rbind, dynamic.gpp[[1]]))
+dynamic.gpp.diatoms <- as_data_frame(do.call(rbind, dynamic.gpp[[2]]))
+dynamic.gpp.greens <- as_data_frame(do.call(rbind, dynamic.gpp[[3]]))
+dynamic.gpp.cyanos <- as_data_frame(do.call(rbind, dynamic.gpp[[4]]))
+
+# bind together
+dynamic.gpp.df <- bind_rows(dynamic.gpp.average, dynamic.gpp.diatoms, 
+                            dynamic.gpp.greens, dynamic.gpp.cyanos) %>%
+  mutate(model = rep("dynamic", nrow(loads) * 4),
+         species = rep(c("average", "diatoms", "greens", "cyanos"), each = nrow(loads)),
+         Pin = rep(loads$Pin, 4), 
+         Nin = rep(loads$Nin, 4))
+dynamic.gpp.df$species <- factor(dynamic.gpp.df$species, levels = c("average", "diatoms", "greens", "cyanos"))
+
+# # sneak peak of data
+# dynamic.gpp.df %>% ggplot(aes(Pin, Nin, fill = GPP)) +
+#   geom_raster() + facet_wrap(species~.) +
+#   scale_fill_viridis_c()
+
+
+```
+Combine data sets and prepare for plotting
+
+```{r}
+
+gpp.combined <- bind_rows(static.gpp.df, dynamic.gpp.df)
+gpp.combined$model <- factor(gpp.combined$model, levels = c("static", "dynamic"))
+
+```
+
+plot variation in GPP as a function of nutrient loads
+
+```{r}
+
+(plt.gpp <- gpp.combined %>%
+  ggplot(aes(Pin, Nin, fill = log10(GPP))) + 
+  geom_raster() + 
+ # Redfield
+  geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1, alpha = 0.5) +
+  # Downing and McCauley
+  geom_abline(intercept = 0, slope  = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
+  labs(x = expression("Inflow P ug L"^-1), 
+       y = expression("Inflow N ug L"^-1),
+       fill = expression("log"[10] ~ "GPP mg C L"^-1 ~ "day"^-1)) + 
+  facet_grid(model~species) + 
+  scale_fill_viridis_c(breaks = c(-2, -1, 0, 0.5))
+)
+
+#save_plot("figures/GPP_all_species.png", plt.gpp, base_height = 5, base_width = 10)
+
+
+```
+
+plot variation in C:N:P as a function of nutrient loads
+
+```{r}
+# C:N
+plt.cn <- gpp.combined %>%
+  filter(model == "dynamic") %>%
+  ggplot(aes(Pin, Nin, fill = (1/QN1))) + 
+  geom_raster() + 
+ # Redfield
+  geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1, alpha = 0.5) +
+  # Downing and McCauley
+  geom_abline(intercept = 0, slope  = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
+  labs(#x = expression("Inflow P ug L"^-1), 
+      x = NULL,
+       y = expression("Inflow N ug L"^-1),
+       fill = "Cell C:N (mass)") + 
+  facet_grid(.~species) + 
+  scale_fill_viridis_c() + 
+  theme(legend.position = "right")
+
+# C:P
+plt.cp <- gpp.combined %>%
+  filter(model == "dynamic") %>%
+  ggplot(aes(Pin, Nin, fill = (1/QP1))) + 
+  geom_raster() + 
+# Redfield
+  geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1, alpha = 0.5) +
+  # Downing and McCauley
+  geom_abline(intercept = 0, slope  = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
+  labs(#x = expression("Inflow P ug L"^-1),
+      x = NULL,
+       y = expression("Inflow N ug L"^-1),
+       fill = "Cell C:P (mass)") + 
+  facet_grid(.~species) + 
+  scale_fill_viridis_c() + 
+  theme(legend.position = "right")
+
+# N:P
+plt.np <- gpp.combined %>%
+  filter(model == "dynamic") %>%
+  ggplot(aes(Pin, Nin, fill = (QN1/QP1))) + 
+  geom_raster() + 
+ # Redfield
+  geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1, alpha = 0.5) +
+  # Downing and McCauley
+  geom_abline(intercept = 0, slope  = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
+  labs(x = expression("Inflow P ug L"^-1),
+       y = expression("Inflow N ug L"^-1),
+       fill = "Cell N:P (mass)") + 
+  facet_grid(.~species) + 
+  scale_fill_viridis_c() + 
+  theme(legend.position = "right")
+
+plt.cnp <- ggarrange(plotlist = list(plt.cn, plt.cp, plt.np), 
+                     align = "hv", labels = c("a", "b", "c"),
+                     nrow = 3, ncol = 1)
+
+plt.cnp
+
+#save_plot("figures/CNP_all_species.png", plt.cnp, base_height = 7.5, base_width = 10)
+
+```
+
+
+explicitly plot seston C:N:P as a function of inflow stoichiometry
+
+run simulations to build figure
+
+```{r}
+
+# nutrient loads
+np.loads <- expand.grid(Pin = seq(20,500, 50),
+                          NP_inflow = seq(5, 100, 5))
+np.loads$Nin <- np.loads$Pin * np.loads$NP_inflow
+
+np.runs <-  lapply(list(dynamic.algae, dynamic.diatoms, dynamic.greens, dynamic.cyanos), function(x) {
+  params <- x
+  lapply(1:nrow(np.loads), function(i) {
+    params["Pin"] = np.loads[i, "Pin"]
+    params["Nin"] = np.loads[i, "Nin"]
+    y <- c("A1" = 100, "P" = loads[i, "Pin"],"N" = np.loads[i, "Nin"], "QP1" = 0.015, "QN1" = 0.1)
+    run <- ode(y, times, parms = params, func = dynamic.stoich)
+    return(run[max(times),])
+  })
+})
+# extract from list and convert to data-frame
+np.runs.average <- as_data_frame(do.call(rbind, np.runs[[1]]))
+np.runs.diatoms <- as_data_frame(do.call(rbind, np.runs[[2]]))
+np.runs.greens <- as_data_frame(do.call(rbind, np.runs[[3]]))
+np.runs.cyanos <- as_data_frame(do.call(rbind, np.runs[[4]]))
+
+# bind together
+np.runs.df <- bind_rows(np.runs.average, np.runs.diatoms, 
+                            np.runs.greens, np.runs.cyanos) %>%
+  mutate(model = rep("dynamic", nrow(np.loads) * 4),
+         species = rep(c("average", "diatoms", "greens", "cyanos"), each = nrow(np.loads)),
+         Pin = rep(np.loads$Pin, 4), 
+         Nin = rep(np.loads$Nin, 4),
+         NP_inflow = rep(np.loads$NP_inflow, 4))
+np.runs.df$species <- factor(np.runs.df$species, levels = c("average", "diatoms", "greens", "cyanos"))
+
+
+```
+
+
+
+```{r}
+# subset data set and calculate C:N:P
+seston.cnp <- np.runs.df[np.runs.df$model == "dynamic",] %>%
+  mutate("C:N" = 1/QN1,"C:P" = 1/QP1, "N:P" = QN1/QP1, NP_inflow = Nin/Pin) %>%
+  select(`C:N`, `C:P`, `N:P`,Pin, NP_inflow, species) %>%
+  gather("seston", "value", -Pin, -NP_inflow, -species) %>%
+  mutate(seston = factor(seston, levels = c("C:N", "C:P", "N:P")))
+
+
+# create plot manually
+plt.seston.cnp <- ggplot() + 
+  # average
+  geom_line(data = seston.cnp[seston.cnp$species == "average",],
+            aes(x = NP_inflow, y = value, col = Pin, group = Pin), lwd = .75) +
+  geom_point(data = seston.cnp[seston.cnp$species == "average",],
+             aes(x = NP_inflow, y = value,fill = Pin, pch = species),
+             pch = 21, size = 2, col = "white") +
+  # diatoms
+  geom_line(data = seston.cnp[seston.cnp$species == "diatoms",],
+            aes(x = NP_inflow, y = value, col = Pin, group = Pin), lwd = .75) +
+  geom_point(data = seston.cnp[seston.cnp$species == "diatoms",],
+             aes(x = NP_inflow, y = value,fill = Pin, pch = species),
+             pch = 22, size = 2, col = "white") +
+  # green-algae
+  geom_line(data = seston.cnp[seston.cnp$species == "greens",],
+            aes(x = NP_inflow, y = value, col = Pin, group = Pin), lwd = .75) +
+  geom_point(data = seston.cnp[seston.cnp$species == "greens",],
+             aes(x = NP_inflow, y = value,fill = Pin, pch = species),
+             pch = 23, size = 2, col = "white") +
+  # cyanobacteria
+  geom_line(data = seston.cnp[seston.cnp$species == "cyanos",],
+            aes(x = NP_inflow, y = value, col = Pin, group = Pin), lwd = .75) +
+  geom_point(data = seston.cnp[seston.cnp$species == "cyanos",],
+             aes(x = NP_inflow, y = value,fill = Pin, pch = species),
+             pch = 24, size = 2, col = "white") +
+  #  # Redfield
+  # geom_vline(xintercept =  c(16*14.007/30.974), 
+  #             lty = "dashed", col = "white", lwd = 1) +
+  # # Downing and McCauley
+  # geom_vline(xintercept = c(14, 30), 
+  #             lty = "dashed", col = "black", lwd = 1) + 
+  facet_wrap(seston~., scales = "free_y") + 
+  labs(x = "N:P inflow (mass)",
+       y = "Cell C:N:P (mass)",
+       col = expression("Inflow P ug L"^-1), 
+       fill = NULL) +
+  scale_fill_viridis_c() + 
+  scale_color_viridis_c() + 
+  scale_shape_manual(
+    values = c("21" = "average", "22" = "diatoms", "23" = "greens", "24" = "cyanos")) +
+  guides(fill = "none") 
+plt.seston.cnp
+
+#save_plot("figures/CNP_across_NP.png", plt.seston.cnp, base_width = 10, base_height = 5)
+
+```
+
+## Sensitivity analysis
+
+### Part 1, +/- 10% change in trait value
+
+### Sensitivity analysis part 2, run models across trait gradients 
+
+Run models across a grid of parameters while holding all but one parameter constant. This is then replicated for each parameter.
+
+static model
+
+```{r}
+
+# KP
+kp.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              KP1 = seq(1, 10, 1))
+
+kp.static <- lapply(1:nrow(kp.loads), function(i) {
+  #print(i)
+  static.algae["Pin"] = kp.loads[i, "Pin"]
+  static.algae["Nin"] = kp.loads[i, "Nin"]
+  static.algae["KP1"] = kp.loads[i, "KP1"]
+  y <- c("A1" = 100, "P" = kp.loads[i, "Pin"],"N" = kp.loads[i, "Nin"])
+  run <- ode(y, times, parms = static.algae, func = static.stoich)
+  return(run[max(times),])
+})
+
+kp.static <- as_data_frame(do.call(rbind, kp.static))
+kp.static$Pin <- kp.loads$Pin
+kp.static$Nin <- kp.loads$Nin
+kp.static$trait = "KP"
+kp.static$trait.value = kp.loads$KP1
+
+# KN
+kn.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              KN1 = seq(5, 50, 5))
+
+kn.static <- lapply(1:nrow(kn.loads), function(i) {
+  #print(i)
+  static.algae["Pin"] = kn.loads[i, "Pin"]
+  static.algae["Nin"] = kn.loads[i, "Nin"]
+  static.algae["KN1"] = kn.loads[i, "KN1"]
+  y <- c("A1" = 100, "P" = kn.loads[i, "Pin"],"N" = kn.loads[i, "Nin"])
+  run <- ode(y, times, parms = static.algae, func = static.stoich)
+  return(run[max(times),])
+})
+
+kn.static <- as_data_frame(do.call(rbind, kn.static))
+kn.static$Pin <- kn.loads$Pin
+kn.static$Nin <- kn.loads$Nin
+kn.static$trait = "KN"
+kn.static$trait.value = kn.loads$KN1
+
+# QP
+qp.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              QP1 = seq(0.01, 0.1, 0.01))
+
+qp.static <- lapply(1:nrow(qp.loads), function(i) {
+  #print(i)
+  static.algae["Pin"] = qp.loads[i, "Pin"]
+  static.algae["Nin"] = qp.loads[i, "Nin"]
+  static.algae["QP1"] = qp.loads[i, "QP1"]
+  y <- c("A1" = 100, "P" = qp.loads[i, "Pin"],"N" = qp.loads[i, "Nin"])
+  run <- ode(y, times, parms = static.algae, func = static.stoich)
+  return(run[max(times),])
+})
+
+qp.static <- as_data_frame(do.call(rbind, qp.static))
+qp.static$Pin <- qp.loads$Pin
+qp.static$Nin <- qp.loads$Nin
+qp.static$trait = "minQP"
+qp.static$trait.value = qp.loads$QP1
+
+
+# QN
+qn.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              QN1 = seq(0.01, 0.1, 0.01))
+
+qn.static <- lapply(1:nrow(qn.loads), function(i) {
+  #print(i)
+  static.algae["Pin"] = qn.loads[i, "Pin"]
+  static.algae["Nin"] = qn.loads[i, "Nin"]
+  static.algae["QN1"] = qn.loads[i, "QN1"]
+  y <- c("A1" = 100, "P" = qn.loads[i, "Pin"],"N" = qn.loads[i, "Nin"])
+  run <- ode(y, times, parms = static.algae, func = static.stoich)
+  return(run[max(times),])
+})
+
+qn.static <- as_data_frame(do.call(rbind, qn.static))
+qn.static$Pin <- qp.loads$Pin
+qn.static$Nin <- qp.loads$Nin
+qn.static$trait = "minQN"
+qn.static$trait.value = qn.loads$QN1
+
+# rmax
+umax.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              umax1 = seq(0.01, 1, 0.1))
+
+umax.static <- lapply(1:nrow(umax.loads), function(i) {
+  #print(i)
+  static.algae["Pin"] = umax.loads[i, "Pin"]
+  static.algae["Nin"] = umax.loads[i, "Nin"]
+  static.algae["umax1"] = umax.loads[i, "umax1"]
+  y <- c("A1" = 100, "P" = umax.loads[i, "Pin"],"N" = umax.loads[i, "Nin"])
+  run <- ode(y, times, parms = static.algae, func = static.stoich)
+  return(run[max(times),])
+})
+
+umax.static <- as_data_frame(do.call(rbind, umax.static))
+umax.static$Pin <- umax.loads$Pin
+umax.static$Nin <- umax.loads$Nin
+umax.static$trait = "umax"
+umax.static$trait.value = umax.loads$umax1
+
+
+# bind all together
+static.trait.var <- bind_rows(kp.static, kn.static, qp.static, qn.static, umax.static)
+static.trait.var$model <- "static"
+
+
+``` 
+
+dynamic model
+
+```{r}
+
+# KP
+kp.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              KP1 = seq(1, 10, 1))
+
+kp.dynamic <- lapply(1:nrow(kp.loads), function(i) {
+  #print(i)
+  dynamic.algae["Pin"] = kp.loads[i, "Pin"]
+  dynamic.algae["Nin"] = kp.loads[i, "Nin"]
+  dynamic.algae["KP1"] = kp.loads[i, "KP1"]
+  y <- c("A1" = 100, "P" = kp.loads[i, "Pin"],"N" = kp.loads[i, "Nin"],  "QP1" = 0.015, "QN1" = 0.1)
+  run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich)
+  return(run[max(times),])
+})
+
+kp.dynamic <- as_data_frame(do.call(rbind, kp.dynamic))
+kp.dynamic$Pin <- kp.loads$Pin
+kp.dynamic$Nin <- kp.loads$Nin
+kp.dynamic$trait = "KP"
+kp.dynamic$trait.value = kp.loads$KP1
+
+# KN
+kn.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              KN1 = seq(5, 50, 5))
+
+kn.dynamic <- lapply(1:nrow(kn.loads), function(i) {
+  #print(i)
+  dynamic.algae["Pin"] = kn.loads[i, "Pin"]
+  dynamic.algae["Nin"] = kn.loads[i, "Nin"]
+  dynamic.algae["KN1"] = kn.loads[i, "KN1"]
+  y <- c("A1" = 100, "P" = kn.loads[i, "Pin"],"N" = kn.loads[i, "Nin"],  "QP1" = 0.015, "QN1" = 0.1)
+  run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich)
+  return(run[max(times),])
+})
+
+kn.dynamic <- as_data_frame(do.call(rbind, kn.dynamic))
+kn.dynamic$Pin <- kn.loads$Pin
+kn.dynamic$Nin <- kn.loads$Nin
+kn.dynamic$trait = "KN"
+kn.dynamic$trait.value = kn.loads$KN1
+
+# QP
+qp.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              minQP1 = seq(0.01, 0.1, 0.01))
+
+qp.dynamic <- lapply(1:nrow(qp.loads), function(i) {
+  #print(i)
+  dynamic.algae["Pin"] = qp.loads[i, "Pin"]
+  dynamic.algae["Nin"] = qp.loads[i, "Nin"]
+  dynamic.algae["minQP1"] = qp.loads[i, "minQP1"]
+  y <- c("A1" = 100, "P" = qp.loads[i, "Pin"],"N" = qp.loads[i, "Nin"],  "QP1" = 0.015, "QN1" = 0.1)
+  run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich)
+  return(run[max(times),])
+})
+
+qp.dynamic <- as_data_frame(do.call(rbind, qp.dynamic))
+qp.dynamic$Pin <- qp.loads$Pin
+qp.dynamic$Nin <- qp.loads$Nin
+qp.dynamic$trait = "minQP"
+qp.dynamic$trait.value = qp.loads$minQP1
+
+
+# QN
+qn.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              minQN1 = seq(0.01, 0.1, 0.01))
+
+qn.dynamic <- lapply(1:nrow(qn.loads), function(i) {
+  #print(i)
+  dynamic.algae["Pin"] = qn.loads[i, "Pin"]
+  dynamic.algae["Nin"] = qn.loads[i, "Nin"]
+  dynamic.algae["minQN1"] = qn.loads[i, "minQN1"]
+  y <- c("A1" = 100, "P" = qn.loads[i, "Pin"],"N" = qn.loads[i, "Nin"],  "QP1" = 0.015, "QN1" = 0.1)
+  run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich)
+  return(run[max(times),])
+})
+
+qn.dynamic <- as_data_frame(do.call(rbind, qn.dynamic))
+qn.dynamic$Pin <- qp.loads$Pin
+qn.dynamic$Nin <- qp.loads$Nin
+qn.dynamic$trait = "minQN"
+qn.dynamic$trait.value = qn.loads$minQN1
+
+# VmaxP
+vmaxP.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              upP1 = seq(0.1, 1, 0.1))
+
+vmaxP.dynamic <- lapply(1:nrow(vmaxP.loads), function(i) {
+  #print(i)
+  dynamic.algae["Pin"] = vmaxP.loads[i, "Pin"]
+  dynamic.algae["Nin"] = vmaxP.loads[i, "Nin"]
+  dynamic.algae["upP1"] = vmaxP.loads[i, "upP1"]
+  y <- c("A1" = 100, "P" = vmaxP.loads[i, "Pin"],"N" = vmaxP.loads[i, "Nin"],  "QP1" = 0.015, "QN1" = 0.1)
+  run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich)
+  return(run[max(times),])
+})
+
+vmaxP.dynamic <- as_data_frame(do.call(rbind, vmaxP.dynamic))
+vmaxP.dynamic$Pin <- vmaxP.loads$Pin
+vmaxP.dynamic$Nin <- vmaxP.loads$Nin
+vmaxP.dynamic$trait = "VmaxP"
+vmaxP.dynamic$trait.value = vmaxP.loads$upP1
+
+# VmaxN
+vmaxN.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              upN1 = seq(0.1, 1, 0.1))
+
+vmaxN.dynamic <- lapply(1:nrow(vmaxN.loads), function(i) {
+  #print(i)
+  dynamic.algae["Pin"] = vmaxN.loads[i, "Pin"]
+  dynamic.algae["Nin"] = vmaxN.loads[i, "Nin"]
+  dynamic.algae["upN1"] = vmaxN.loads[i, "upN1"]
+  y <- c("A1" = 100, "P" = vmaxN.loads[i, "Pin"],"N" = vmaxN.loads[i, "Nin"],  "QP1" = 0.015, "QN1" = 0.1)
+  run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich)
+  return(run[max(times),])
+})
+
+vmaxN.dynamic <- as_data_frame(do.call(rbind, vmaxN.dynamic))
+vmaxN.dynamic$Pin <- vmaxN.loads$Pin
+vmaxN.dynamic$Nin <- vmaxN.loads$Nin
+vmaxN.dynamic$trait <- "VmaxN"
+vmaxN.dynamic$trait.value = vmaxN.loads$upN1
+
+# umax
+umax.loads <- expand.grid(Pin = seq(20, 500, 100),
+                              Nin = seq(100, 15000, 1000), 
+                              umax1 = seq(0.01, 1, 0.1))
+
+umax.dynamic <- lapply(1:nrow(umax.loads), function(i) {
+  #print(i)
+  dynamic.algae["Pin"] = umax.loads[i, "Pin"]
+  dynamic.algae["Nin"] = umax.loads[i, "Nin"]
+  dynamic.algae["umax1"] = umax.loads[i, "umax1"]
+  y <- c("A1" = 100, "P" = umax.loads[i, "Pin"],"N" = umax.loads[i, "Nin"], "QP1" = 0.015, "QN1" = 0.1)
+  run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich)
+  return(run[max(times),])
+})
+
+umax.dynamic <- as_data_frame(do.call(rbind, umax.dynamic))
+umax.dynamic$Pin <- umax.loads$Pin
+umax.dynamic$Nin <- umax.loads$Nin
+umax.dynamic$trait = "umax"
+umax.dynamic$trait.value = umax.loads$umax1
+
+
+# bind all together
+dynamic.trait.var <- bind_rows(kp.dynamic, kn.dynamic, qp.dynamic, qn.dynamic, 
+                               vmaxP.dynamic, vmaxN.dynamic, umax.dynamic)
+dynamic.trait.var$model <- "dynamic"
+
+
+``` 
+
+bind together and prepare for plotting
+
+```{r}
+# combine
+trait.var.combined <- bind_rows(static.trait.var, dynamic.trait.var)
+trait.var.combined$model <- factor(trait.var.combined$model, levels = c("static", "dynamic"))
+trait.var.combined$trait <- factor(trait.var.combined$trait, 
+                                  levels = c("KP", "KN", "minQP", "minQN", "VmaxN", "VmaxP", "umax"))
+
+```
+
+plot data
+
+```{r}
+
+trait.var.plot <- trait.var.combined %>%
+  ggplot() + 
+  geom_point(aes(trait.value, log(GPP), col = Pin), size = 2) + 
+  ggh4x::facet_grid2(model~trait,  scales = "free", independent = "all") + 
+  scale_color_viridis_c() + 
+  labs(x = "Trait value",
+       y =  expression("log"[10] ~ "GPP mg C L"^-1 ~ "day"^-1),
+       col = expression("Inflow P ug L"^-1))
+
+trait.var.plot
+
+#save_plot("figures/trait_variation.png", trait.var.plot, base_height = 5, base_width = 12)
+
+```
+plot variation in C:N:P
+```{r}
+# CN
+trait.var.cn <- trait.var.combined %>%
+  filter(model == "dynamic") %>%
+  ggplot() + 
+  geom_point(aes(trait.value, 1/QN1, col = Pin), size = 2) + 
+  ggh4x::facet_grid2(.~trait,  scales = "free", independent = "all") + 
+  scale_color_viridis_c() + 
+  labs(x = NULL,
+       y =  "Cell C:N (mass)",
+       col = expression("Inflow P ug L"^-1)) + 
+  theme(legend.position = "right")
+
+# CP
+trait.var.cp <- trait.var.combined %>%
+  filter(model == "dynamic") %>%
+  ggplot() + 
+  geom_point(aes(trait.value, 1/QP1, col = Pin), size = 2) + 
+  ggh4x::facet_grid2(.~trait,  scales = "free", independent = "all") + 
+  scale_color_viridis_c() + 
+  labs(x = NULL,
+       y =  "Cell C:P (mass)",
+       col = expression("Inflow P ug L"^-1)) + 
+  theme(legend.position = "right")
+
+# N:P
+trait.var.np <- trait.var.combined %>%
+  filter(model == "dynamic") %>%
+  ggplot() + 
+  geom_point(aes(trait.value, QN1/QP1, col = Pin), size = 2) + 
+  ggh4x::facet_grid2(.~trait,  scales = "free", independent = "all") + 
+  scale_color_viridis_c() + 
+  labs(x = "Trait value",
+       y =  "Cell N:P (mass)",
+       col = expression("Inflow P ug L"^-1)) + 
+  theme(legend.position = "right")
+
+# combine
+trait.var.cnp <- ggarrange(plotlist = list(trait.var.cn, trait.var.cp, trait.var.np), 
+                           align = "hv", nrow = 3, labels = c("a", "b", "c"), 
+                           common.legend = T, legend = "bottom")
+trait.var.cnp
+
+save_plot("figures/trait_variation_cnp.png", trait.var.cnp, base_height = 8, base_width = 12)
+
+
+```
+
+
+save files
+
+```{r}
+
+save(list = ls(),file = "GPP_and_sensitivity.Rdata")
+load("GPP_and_sensitivity.Rdata")
+
+```
+
+
