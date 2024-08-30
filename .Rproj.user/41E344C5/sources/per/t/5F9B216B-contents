@@ -1,0 +1,527 @@
+---
+title: "Cross-validation Corman GPP data set and grid search"
+author: "Daniel Gschwentner"
+date: "2024-08-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup
+
+
+load Corman et al 2024 data set to force models
+```{r}
+# put this all in an R-script to keep stuff tidy; gotta run this first bc. otherwise removes everything from environment
+source("clean_corman.R")
+```
+
+Set up environment, load packages, plotting aesthetics, etc.
+
+```{r include = F, message = F, warning=F}
+# load packages
+pck <- c("deSolve", "tidyverse", "cowplot", "ggthemes", "wesandersen", "ggpubr")
+lapply(pck, require, character.only = T)
+# set plotting theme
+theme_set(theme_solarized(light=F) + 
+          theme(text = element_text(color = "white"), 
+                axis.text = element_text(color = "white"),
+                axis.title = element_text(color = "white"),
+                legend.text = element_text(color = "white"),
+                legend.title = element_text(color = "white"),
+                legend.justification = "center", 
+                legend.position = "bottom"))
+
+```
+
+
+load models, set timesteps
+```{r}
+# load ODE models 
+# saved in external files for convenience
+# static model with fixed stoichiometry
+source("models/static_liebig_zmix.R") # model 1 in Carly's framework
+# Droop model
+source("models/dynamic_liebig_zmix.R") # model 3 in Carly's framework
+# set timesteps
+times <- 1:1000 # for troubleshooting, initial runs
+```
+
+load table with phytoplankton traits; traits are used to parameterize the models
+
+```{r}
+
+traits <- read_csv("data4input/phyto_traits4models_21June2024.csv")[,-1]
+traits
+
+```
+
+create phytoplankton trait paramters for models
+
+```{r}
+# average algae static model
+
+static.algae <- c(
+  # lake parameters
+  SA= NA,		# lake surface area in km2
+  # varies by simulation
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  DOC = NA, 
+  z = NA,
+
+  # algae physiology parameters
+  umax1 = traits[12, "average"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "average"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = traits[6, "average"], # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = traits[1, "average"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  QN1 = traits[5, "average"] # algae cell N quota in mg N mg^-1 C^-1 
+)
+names(static.algae) <- c("SA", "Pin", "Nin", "DOC", "z", "umax1", "lA", "v", 
+                        "KP1",  "QP1", "KN1",  "QN1")
+names(static.algae)
+static.algae <- unlist(static.algae)
+
+
+```
+
+
+```{r}
+# diatoms static model
+
+static.diatoms <- c(
+  # lake parameters
+  SA= NA,		# lake surface area in km2
+  # varies by simulation
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  DOC = NA, 
+  z = NA,
+
+  # algae physiology parameters
+  umax1 = traits[12, "diatoms"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "diatoms"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = traits[6, "diatoms"], # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = traits[1, "diatoms"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  QN1 = traits[5, "diatoms"] # algae cell N quota in mg N mg^-1 C^-1 
+)
+names(static.diatoms) <- c("SA", "Pin", "Nin", "DOC", "z", "umax1", "lA", "v", 
+                        "KP1",  "QP1", "KN1",  "QN1")
+names(static.diatoms)
+static.diatoms <- unlist(static.diatoms)
+
+```
+
+
+```{r}
+# green algae static model
+
+static.greens <- c(
+  # lake parameters
+  SA= NA,		# lake surface area in km2
+  # varies by simulation
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  DOC = NA,
+  z = NA,
+
+  # algae physiology parameters
+  umax1 = traits[12, "greens"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "greens"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = traits[6, "greens"], # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = traits[1, "greens"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  QN1 = traits[5, "greens"] # algae cell N quota in mg N mg^-1 C^-1 
+)
+names(static.greens) <- c("SA", "Pin", "Nin", "DOC", "z", "umax1", "lA", "v", 
+                          "KP1",  "QP1", "KN1",  "QN1")
+names(static.greens)
+static.greens <- unlist(static.greens)
+
+```
+
+
+```{r}
+# cyanobacteria static model
+
+static.cyanos <- c(
+  # lake parameters
+  SA= NA,		# lake surface area in km2
+  # varies by simulation
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3,
+  DOC = NA,
+  z = NA,
+
+  # algae physiology parameters
+  umax1 = traits[12, "cyanos"],
+  lA=0.1,			# mortality rate day-1
+  v=0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "cyanos"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  QP1 = traits[6, "cyanos"], # algae cell P quota in mg P mg^-1 C^-1
+  KN1 = traits[1, "cyanos"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  QN1 = traits[5, "cyanos"] # algae cell N quota in mg N mg^-1 C^-1 
+)
+names(static.cyanos) <- c("SA", "Pin", "Nin", "DOC", "z", "umax1", "lA", "v",
+                          "KP1",  "QP1", "KN1",  "QN1")
+names(static.cyanos)
+static.cyanos <- unlist(static.cyanos)
+
+```
+
+
+```{r}
+
+# average algae dynamic model
+
+dynamic.algae <- c(
+  # lake parameters
+  SA= NA,		# lake surface area in km2
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  DOC = NA,
+  z = NA,
+
+  # algae physiology parameters
+  umax1 = traits[12, "average"],
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "average"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  minQP1 = traits[6, "average"], # algae cell P quota in mg P mg^-1 C^-1 f
+  upP1 = traits[4, "average"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  KN1 = traits[1, "average"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  minQN1 = traits[5, "average"], # algae cell N quota in mg N mg^-1 C^-1 f
+  upN1 = traits[3, "average"] # max uptake rate N per day in mg N mg C^-1 day^-1 
+)
+
+names(dynamic.algae) <- c("SA", "Pin", "Nin", "DOC", "z", 
+                             "umax1", "lA", "v",
+                             "KP1", "minQP1", "upP1", "KN1",
+                             "minQN1", "upN1")
+names(dynamic.algae)
+dynamic.algae <- unlist(dynamic.algae)
+
+```
+
+
+```{r}
+
+# diatoms dynamic model
+
+dynamic.diatoms <- c(
+  # lake parameters
+  SA= NA,		# lake surface area in km2
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  DOC = NA, 
+  z = NA,
+
+  # algae physiology parameters
+  umax1 = traits[12, "diatoms"],
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "diatoms"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  minQP1 = traits[6, "diatoms"], # algae cell P quota in mg P mg^-1 C^-1 f
+  upP1 = traits[4, "diatoms"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  KN1 = traits[1, "diatoms"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  minQN1 = traits[5, "diatoms"], # algae cell N quota in mg N mg^-1 C^-1 f
+  upN1 = traits[3, "diatoms"] # max uptake rate N per day in mg N mg C^-1 day^-1 
+)
+
+names(dynamic.diatoms) <- c("SA", "Pin", "Nin", "DOC", "z",
+                             "umax1", "lA", "v","KP1", "minQP1", "upP1", "KN1",
+                             "minQN1", "upN1")
+names(dynamic.diatoms)
+dynamic.diatoms <- unlist(dynamic.diatoms)
+
+```
+
+
+```{r}
+
+# greens dynamic model
+
+dynamic.greens <- c(
+  # lake parameters
+  SA= NA,		# lake surface area in km2
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  DOC = NA,
+  z= NA,
+
+  # algae physiology parameters
+  umax1 = traits[12, "greens"],
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "greens"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  minQP1 = traits[6, "greens"], # algae cell P quota in mg P mg^-1 C^-1 f
+  upP1 = traits[4, "greens"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  KN1 = traits[1, "greens"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  minQN1 = traits[5, "greens"], # algae cell N quota in mg N mg^-1 C^-1 f
+  upN1 = traits[3, "greens"] # max uptake rate N per day in mg N mg C^-1 day^-1 
+)
+
+names(dynamic.greens) <- c("SA", "Pin", "Nin", "DOC", "z", 
+                             "umax1", "lA", "v", "KP1", "minQP1", "upP1", "KN1",
+                             "minQN1", "upN1")
+names(dynamic.greens)
+dynamic.greens <- unlist(dynamic.greens)
+
+```
+
+```{r}
+
+# cyanos dynamic model
+
+dynamic.cyanos <- c(
+  # lake parameters
+  SA= NA,		# lake surface area in km2
+  Pin = NA, # P inflow concentration in mg P m^-3
+  Nin = NA, # N inflow concentration in mg N m^-3
+  DOC = NA, 
+  z = NA,
+
+  # algae physiology parameters
+  umax1 = traits[12, "cyanos"],
+  lA=0.1,			# mortality rate day-1
+  v= 0.1,			# m d-1; sinking loss of algae
+  KP1 = traits[2, "cyanos"] * 1000, # phosphorus half sat constant in mg P m^-3 f
+  minQP1 = traits[6, "cyanos"], # algae cell P quota in mg P mg^-1 C^-1 f
+  upP1 = traits[4, "cyanos"], # max uptake rate P per day in mg P mg C^-1 day^-1 
+  KN1 = traits[1, "cyanos"] * 1000, # nitrogen half sat constant in mg N m^-3 
+  minQN1 = traits[5, "cyanos"], # algae cell N quota in mg N mg^-1 C^-1 f
+  upN1 = traits[3, "cyanos"] # max uptake rate N per day in mg N mg C^-1 day^-1 
+)
+
+names(dynamic.cyanos) <- c("SA", "Pin", "Nin", "DOC", "z", 
+                             "umax1", "lA", "v", "KP1", 
+                            "minQP1", "upP1", "KN1", "minQN1", "upN1")
+names(dynamic.cyanos)
+dynamic.cyanos <- unlist(dynamic.cyanos)
+
+
+```
+
+## Run models
+
+create grid with input data
+
+```{r}
+in.grid <- as.data.frame(corman2)
+```
+
+
+run the static models across the N and P inflow loads
+
+```{r}
+
+(start <- Sys.time())
+corman.static <-  lapply(list(static.algae, static.diatoms, static.greens, static.cyanos), function(x) {
+  params <- x
+  lapply(1:nrow(in.grid), function(i) {
+    params["Pin"] = in.grid[i, "TP_in"]
+    params["Nin"] = in.grid[i, "TN_in"]
+    params["DOC"] = in.grid[i, "DOC_mgL"]
+    params["z"] = in.grid[i, "z"]
+    params["SA"] = in.grid[i, "SA"]
+    y <- c("A1" = 100, "P" =in.grid[i, "TP_in"], "N" = in.grid[i, "TN_in"])
+    run <- ode(y, times, parms = params, func = static.stoich.zmix)
+    return(run[max(times),])
+  })
+})
+(end <- Sys.time())
+time.elapsed <- (end - start)/60/60
+print(paste0("Time elapsed = ", time.elapsed, " hours!"))
+
+# extract from list and convert to data-frame
+corman.static.average <- as_data_frame(do.call(rbind, corman.static[[1]]))
+corman.static.diatoms <- as_data_frame(do.call(rbind, corman.static[[2]]))
+corman.static.greens <- as_data_frame(do.call(rbind, corman.static[[3]]))
+corman.static.cyanos <- as_data_frame(do.call(rbind, corman.static[[4]]))
+
+# create summary data frame
+static.out <- corman2
+static.out$average <- corman.static.average$GPP
+static.out$diatoms <- corman.static.diatoms$GPP
+static.out$greens <- corman.static.greens$GPP
+static.out$cyanos <- corman.static.cyanos$GPP
+static.out$model <- "static"
+
+```
+
+run the dynamic model across and N and P inflow loads
+
+
+```{r}
+(start <- Sys.time())
+corman.dynamic <-  lapply(list(dynamic.algae, dynamic.diatoms, dynamic.greens, dynamic.cyanos), function(x) {
+  params <- x
+  lapply(1:nrow(in.grid), function(i) {
+    params["Pin"] = in.grid[i, "TP_in"]
+    params["Nin"] = in.grid[i, "TN_in"]
+    params["DOC"] = in.grid[i, "DOC_mgL"]
+    params["z"] = in.grid[i, "z"]
+    params["SA"] = in.grid[i, "SA"]
+    y <- c("A1" = 100, "P" =in.grid[i, "TP_in"], "N" = in.grid[i, "TN_in"], 
+           "QP1" = 0.015, "QN1" = 0.1)
+    run <- ode(y, times, parms = params, func = dynamic.stoich.zmix)
+    return(run[max(times),])
+  })
+})
+(end <- Sys.time())
+time.elapsed <- (end - start)/60/60
+print(paste0("Time elapsed = ", time.elapsed, " hours!"))
+
+# extract from list and convert to data-frame
+corman.dynamic.average <- as_data_frame(do.call(rbind, corman.dynamic[[1]]))
+corman.dynamic.diatoms <- as_data_frame(do.call(rbind, corman.dynamic[[2]]))
+corman.dynamic.greens <- as_data_frame(do.call(rbind, corman.dynamic[[3]]))
+corman.dynamic.cyanos <- as_data_frame(do.call(rbind, corman.dynamic[[4]]))
+
+# create summary data frame
+dynamic.out <- corman2
+dynamic.out$average <- corman.dynamic.average$GPP
+dynamic.out$diatoms <- corman.dynamic.diatoms$GPP
+dynamic.out$greens <- corman.dynamic.greens$GPP
+dynamic.out$cyanos <- corman.dynamic.cyanos$GPP
+dynamic.out$model <- "dynamic"
+
+```
+
+merge data sets for plotting
+
+```{r}
+base.predictions.corman <- bind_rows(static.out, dynamic.out)
+base.predictions.corman$model <- factor(base.predictions.corman$model, levels = c("static", "dynamic"))
+# wide to long
+base.predictions.corman <- base.predictions.corman %>%
+  gather("species", "est_GPP", -Lake, -c(1:12), -model) %>%
+  mutate(species = factor(species, levels = c("average", "diatoms", "greens", "cyanos")))
+
+# create summary/RMSE across species and models
+base.rmse <- base.predictions.corman %>%
+  mutate(sqe = (est_GPP - GPP)^2) %>%
+  group_by(model, species) %>%
+  summarize(rmse = sqrt(mean(sqe))) %>%
+  pivot_wider(id_cols = model, names_from = species, values_from = rmse)
+# print  rmse
+base.rmse
+
+# calculate rsq values
+rsq <- expand.grid(model = c("static", "dynamic"), 
+                   species = c("average", "diatoms", "greens", "cyanos"))
+rsq$rsq <- NA
+r <- lapply(1:nrow(rsq), function(i) {
+  subset <- base.predictions.corman %>% filter(species == rsq[i, "species"]  & model == rsq[i, "model"])
+  subset <- subset %>%
+    mutate(log10GPP = log10(GPP), 
+           log10estGPP = log10(est_GPP)) %>%
+    mutate(log10GPP = ifelse(is.infinite(log10GPP), NA, log10GPP))
+  r <- summary(lm(log10estGPP ~ log10GPP, data = subset))$adj.r.squared
+  return(r)
+})
+rsq$rsq <- round(unlist(r), 2)
+```
+
+create figure of observed vs. predicted values
+
+```{r}
+
+(predicted.plt <- base.predictions.corman %>%
+  ggplot() + 
+  geom_smooth(aes(log10(GPP), log10(est_GPP)), method = "lm", alpha = 0.3) + 
+  geom_point(aes(log10(GPP), log10(est_GPP), pch = Lake), size = 2) + 
+  ggh4x::facet_grid2(model ~ species,  scales = "free", independent = "y") + 
+  labs(x = expression("log"[10] ~ "(GPP mg C L"^-1 ~ "day"^-1 ~ ")"), 
+       y = expression("log"[10] ~ "(modelled GPP mg C L"^-1 ~ "day"^-1 ~ ")"),
+       shape = NULL) + 
+   scale_shape_manual(
+     values = c(
+       "Acton" = 0,
+       "EastLong" = 1,
+       "Feeagh" = 2,
+       "Harp" = 3,
+       "Langtjern" = 4,
+       "Lillinoah" = 5,
+       "Lillsjoliden" = 6,
+       "Mangstrettjarn" = 7,
+       "Mendota" = 8,
+       "Morris" = 9,
+       "Struptjarn" = 10,
+       "Trout" = 11,
+       "Vortsjarv" = 12
+     )
+   ) + 
+   theme(legend.position = "right")) 
+
+save_plot("figures/base_predictions_cormanGPP.png", predicted.plt, base_height = 4, base_width = 10)
+ 
+```
+
+
+# Grid analysis
+
+perform grid analysis/search only using QP, QN and umax as these were previously ID'ed as the paramters that the models are most sensitive too.
+
+```{r}
+
+static.grid.search <- expand.grid(
+  KP1 = 16.5,
+  KN1 =  50,
+  minQP1 =  seq(0.01, 0.2, 0.02),
+  minQN1 = seq(0.01, 0.2, 0.02),
+  umax1 = seq(0.1, 1, 0.02)
+)
+
+# repeat grid nrow(corman2) times
+static.grid.search2 <- static.grid.search %>% 
+  slice(rep(1:n(), each = nrow(corman2)))
+
+# add in corman2 data
+static.grid.search2$Lake <- rep(corman2$Lake, nrow(static.grid.search))
+static.grid.search2$GPP <- rep(corman2$GPP, nrow(static.grid.search))
+static.grid.search2$TN_in <- rep(corman2$TN_in, nrow(static.grid.search))
+static.grid.search2$TP_in <- rep(corman2$TP_in, nrow(static.grid.search))
+static.grid.search2$SA <- rep(corman2$SA, nrow(static.grid.search))
+static.grid.search2$DOC_mgL <- rep(corman2$DOC_mgL, nrow(static.grid.search))
+static.grid.search2$z <- rep(corman2$z, nrow(static.grid.search))
+
+#this would take over 10 hrs to run....maybe best to outsource to HCC??? but can do this later
+(start <- Sys.time())
+static.grid.search.out <- lapply(1:nrow(static.grid.search2), function(i){
+  print(i)
+  # indexing
+  static.algae["SA"] = static.grid.search2[i, "SA"]
+  static.algae["DOC"] = static.grid.search2[i, "DOC_mgL"]
+  static.algae["z"] = static.grid.search2[i, "z"]
+  static.algae["KP1"] = static.grid.search2[i, "KP1"]
+  static.algae["KN1"] = static.grid.search2[i, "KN1"]
+  static.algae["QP1"] = static.grid.search2[i, "minQP1"]
+  static.algae["QN1"] = static.grid.search2[i, "minQN1"]
+  static.algae["umax1"] = static.grid.search2[i, "umax1"]
+  static.algae["Pin"] = static.grid.search2[i, "TP_in"]
+  static.algae["Nin"] = static.grid.search2[i, "TN_in"]
+  # starting values
+  y <- c("A1" = 100, "P" = static.grid.search2[i, "TP_in"], "N" = static.grid.search2[i, "TN_in"])
+  run <- ode(y, times, parms = static.algae, func = static.stoich.zmix)
+  return(run[max(times),])
+})
+# convert to df
+static.grid.search.out <- do.call(rbind, static.grid.search.out)
+static.grid.search.out <- as_data_frame(static.grid.search.out)
+(end <- Sys.time())
+time.elapsed <- (end - start)/60/60
+print(paste0("Time elapsed = ", time.elapsed, " hours!"))
+# add to grid
+static.grid.search2$est_GPP <- static.grid.search.out$GPP
+```
+
+
+

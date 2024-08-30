@@ -426,10 +426,22 @@ plot variation in GPP as a function of nutrient loads
 plot variation in C:N:P as a function of nutrient loads
 
 ```{r}
+
+# add stoichiometric ratios
+gpp.combined$CN_mass <- 1/gpp.combined$QN1
+gpp.combined$CP_mass <- 1/gpp.combined$QP1
+gpp.combined$NP_mass <- gpp.combined$QN1/gpp.combined$QP1
+
+# to molar
+gpp.combined$CN_molar <- (gpp.combined$CN_mass * 14.007)/(1*12.011)
+gpp.combined$CP_molar <- (gpp.combined$CP_mass * 30.974)/(1*12.011)
+gpp.combined$NP_molar <- (gpp.combined$QN1/14.007)/(gpp.combined$QP1/30.974)
+
+
 # C:N
 plt.cn <- gpp.combined %>%
   filter(model == "dynamic") %>%
-  ggplot(aes(Pin, Nin, fill = (1/QN1))) + 
+  ggplot(aes(Pin, Nin, fill = log(CN_molar))) + 
   geom_raster() + 
  # Redfield
   geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
@@ -440,7 +452,7 @@ plt.cn <- gpp.combined %>%
   labs(#x = expression("Inflow P ug L"^-1), 
       x = NULL,
        y = expression("Inflow N ug L"^-1),
-       fill = "Cell C:N (mass)") + 
+       fill = "log cell C:N (molar)") + 
   facet_grid(.~species) + 
   scale_fill_viridis_c() + 
   theme(legend.position = "right")
@@ -448,7 +460,7 @@ plt.cn <- gpp.combined %>%
 # C:P
 plt.cp <- gpp.combined %>%
   filter(model == "dynamic") %>%
-  ggplot(aes(Pin, Nin, fill = (1/QP1))) + 
+  ggplot(aes(Pin, Nin, fill = log(CP_molar) )) + 
   geom_raster() + 
 # Redfield
   geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
@@ -459,7 +471,7 @@ plt.cp <- gpp.combined %>%
   labs(#x = expression("Inflow P ug L"^-1),
       x = NULL,
        y = expression("Inflow N ug L"^-1),
-       fill = "Cell C:P (mass)") + 
+       fill = "log cell C:P (molar)") + 
   facet_grid(.~species) + 
   scale_fill_viridis_c() + 
   theme(legend.position = "right")
@@ -467,7 +479,7 @@ plt.cp <- gpp.combined %>%
 # N:P
 plt.np <- gpp.combined %>%
   filter(model == "dynamic") %>%
-  ggplot(aes(Pin, Nin, fill = (QN1/QP1))) + 
+  ggplot(aes(Pin, Nin, fill = log(NP_molar))) + 
   geom_raster() + 
  # Redfield
   geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
@@ -477,7 +489,7 @@ plt.np <- gpp.combined %>%
               lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
   labs(x = expression("Inflow P ug L"^-1),
        y = expression("Inflow N ug L"^-1),
-       fill = "Cell N:P (mass)") + 
+       fill = "Log cell N:P (molar)") + 
   facet_grid(.~species) + 
   scale_fill_viridis_c() + 
   theme(legend.position = "right")
@@ -488,7 +500,7 @@ plt.cnp <- ggarrange(plotlist = list(plt.cn, plt.cp, plt.np),
 
 plt.cnp
 
-#save_plot("figures/CNP_all_species.png", plt.cnp, base_height = 7.5, base_width = 10)
+save_plot("figures/CNP_all_species.png", plt.cnp, base_height = 7.5, base_width = 10)
 
 ```
 
@@ -896,12 +908,12 @@ plot data
 
 trait.var.plot <- trait.var.combined %>%
   ggplot() + 
-  geom_point(aes(trait.value, log(GPP), col = Pin), size = 2) + 
+  geom_point(aes(trait.value, log(GPP), col = log(Nin/Pin)), size = 2) + 
   ggh4x::facet_grid2(model~trait,  scales = "free", independent = "all") + 
   scale_color_viridis_c() + 
   labs(x = "Trait value",
        y =  expression("log"[10] ~ "GPP mg C L"^-1 ~ "day"^-1),
-       col = expression("Inflow P ug L"^-1))
+       col = "log inflow N:P (mass)")
 
 trait.var.plot
 
@@ -910,40 +922,51 @@ trait.var.plot
 ```
 plot variation in C:N:P
 ```{r}
+
+# add stoichiometric ratios
+trait.var.combined$CN_mass <- 1/trait.var.combined$QN1
+trait.var.combined$CP_mass <- 1/trait.var.combined$QP1
+trait.var.combined$NP_mass <- trait.var.combined$QN1/trait.var.combined$QP1
+
+# to molar
+trait.var.combined$CN_molar <- (trait.var.combined$CN_mass * 14.007)/(1*12.011)
+trait.var.combined$CP_molar <- (trait.var.combined$CP_mass * 30.974)/(1*12.011)
+trait.var.combined$NP_molar <- (trait.var.combined$QN1/14.007)/(trait.var.combined$QP1/30.974)
+
 # CN
 trait.var.cn <- trait.var.combined %>%
   filter(model == "dynamic") %>%
   ggplot() + 
-  geom_point(aes(trait.value, 1/QN1, col = Pin), size = 2) + 
+  geom_point(aes(trait.value, log(CN_molar), col = log(Nin/Pin)), size = 2) + 
   ggh4x::facet_grid2(.~trait,  scales = "free", independent = "all") + 
   scale_color_viridis_c() + 
   labs(x = NULL,
-       y =  "Cell C:N (mass)",
-       col = expression("Inflow P ug L"^-1)) + 
+       y =  "log cell C:N (molar)",
+       col = "log inflow N:P (mass)") + 
   theme(legend.position = "right")
 
 # CP
 trait.var.cp <- trait.var.combined %>%
   filter(model == "dynamic") %>%
   ggplot() + 
-  geom_point(aes(trait.value, 1/QP1, col = Pin), size = 2) + 
+  geom_point(aes(trait.value, log(CP_molar), col = log(Nin/Pin)), size = 2) + 
   ggh4x::facet_grid2(.~trait,  scales = "free", independent = "all") + 
   scale_color_viridis_c() + 
   labs(x = NULL,
-       y =  "Cell C:P (mass)",
-       col = expression("Inflow P ug L"^-1)) + 
+       y =  "log C:P (molar)",
+       col = "log inflow N:P (mass)") + 
   theme(legend.position = "right")
 
 # N:P
 trait.var.np <- trait.var.combined %>%
   filter(model == "dynamic") %>%
   ggplot() + 
-  geom_point(aes(trait.value, QN1/QP1, col = Pin), size = 2) + 
+  geom_point(aes(trait.value, log(NP_molar), col = log(Nin/Pin)), size = 2) + 
   ggh4x::facet_grid2(.~trait,  scales = "free", independent = "all") + 
   scale_color_viridis_c() + 
   labs(x = "Trait value",
-       y =  "Cell N:P (mass)",
-       col = expression("Inflow P ug L"^-1)) + 
+       y =  "log cell N:P (molar)",
+       col = "log inflow N:P mass") + 
   theme(legend.position = "right")
 
 # combine
