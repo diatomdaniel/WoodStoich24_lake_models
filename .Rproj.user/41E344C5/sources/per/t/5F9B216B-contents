@@ -413,7 +413,7 @@ base.rmse <- base.predictions.corman %>%
   pivot_wider(id_cols = model, names_from = species, values_from = rmse)
 # print  rmse
 base.rmse
-
+base.rmse[,-1] <- apply(base.rmse[,-1], 2, round, 2)
 # calculate rsq values
 rsq <- expand.grid(model = c("static", "dynamic"), 
                    species = c("average", "diatoms", "greens", "cyanos"))
@@ -433,6 +433,23 @@ rsq$rsq <- round(unlist(r), 2)
 create figure of observed vs. predicted values
 
 ```{r}
+
+# # create data frame with labels
+# lab <- data.frame(
+#   model = rep(c("static", "dynamic"), each = 4), 
+#   species = rep(c("average", "diatoms", "greens", "cyanos"), 2),
+#   text = c(
+#     paste0("RMSE = ", base.rmse[1, 2],  "\n R^2 = ", rsq[1, 3]),
+#     paste0("RMSE = ", base.rmse[1, 3],  "\n R^2 = ", rsq[2, 3]),
+#     paste0("RMSE = ", base.rmse[1, 4],  "\n R^2 = ", rsq[3, 3]),
+#     paste0("RMSE = ", base.rmse[1, 5],  "\n R^2 = ", rsq[4, 3]),
+#     paste0("RMSE = ", base.rmse[2, 2],  "\n R^2 = ", rsq[5, 3]),
+#     paste0("RMSE = ", base.rmse[2, 3],  "\n R^2 = ", rsq[6, 3]),
+#     paste0("RMSE = ", base.rmse[2, 4],  "\n R^2 = ", rsq[7, 3]),
+#     paste0("RMSE = ", base.rmse[2, 5],  "\n R^2 = ", rsq[8, 3])
+#   )
+# )
+
 
 (predicted.plt <- base.predictions.corman %>%
   ggplot() + 
@@ -461,67 +478,321 @@ create figure of observed vs. predicted values
    ) + 
    theme(legend.position = "right")) 
 
-save_plot("figures/base_predictions_cormanGPP.png", predicted.plt, base_height = 4, base_width = 10)
+#save_plot("figures/base_predictions_cormanGPP.png", predicted.plt, base_height = 4, base_width = 10)
  
 ```
 
 
 # Grid analysis
 
-perform grid analysis/search only using QP, QN and umax as these were previously ID'ed as the paramters that the models are most sensitive too.
+perform grid analysis/search only using QP, QN and umax as these were previously ID'ed as the parameters that the models are most sensitive too.
+
+static model
+takes about 2 hrs to run and makes PC unhappy
+
+```{r}
+# 
+# static.grid.search <- expand.grid(
+#   minQP1 =  seq(0.01, 0.2, 0.01),
+#   minQN1 = seq(0.01, 0.2, 0.01),
+#   umax1 = c(0.4, 0.6, 0.8)
+# )
+# static.grid.search$KP1 = 16.5
+# static.grid.search$KN1 = 50
+# # repeat grid nrow(corman2) times
+# static.grid.search2 <- static.grid.search %>% 
+#   slice(rep(1:n(), each = nrow(corman2)))
+# 
+# # add in corman2 data
+# static.grid.search2$Lake <- rep(corman2$Lake, nrow(static.grid.search))
+# static.grid.search2$GPP <- rep(corman2$GPP, nrow(static.grid.search))
+# static.grid.search2$TN_in <- rep(corman2$TN_in, nrow(static.grid.search))
+# static.grid.search2$TP_in <- rep(corman2$TP_in, nrow(static.grid.search))
+# static.grid.search2$SA <- rep(corman2$SA, nrow(static.grid.search))
+# static.grid.search2$DOC_mgL <- rep(corman2$DOC_mgL, nrow(static.grid.search))
+# static.grid.search2$z <- rep(corman2$z, nrow(static.grid.search))
+# 
+# #this would take over 10 hrs to run....maybe best to outsource to HCC??? but can do this later
+# (start <- Sys.time())
+# static.grid.search.out <- lapply(1:nrow(static.grid.search2), function(i){
+#   #print(i)
+#   # indexing
+#   static.algae["SA"] = static.grid.search2[i, "SA"]
+#   static.algae["DOC"] = static.grid.search2[i, "DOC_mgL"]
+#   static.algae["z"] = static.grid.search2[i, "z"]
+#   static.algae["KP1"] = static.grid.search2[i, "KP1"]
+#   static.algae["KN1"] = static.grid.search2[i, "KN1"]
+#   static.algae["QP1"] = static.grid.search2[i, "minQP1"]
+#   static.algae["QN1"] = static.grid.search2[i, "minQN1"]
+#   static.algae["umax1"] = static.grid.search2[i, "umax1"]
+#   static.algae["Pin"] = static.grid.search2[i, "TP_in"]
+#   static.algae["Nin"] = static.grid.search2[i, "TN_in"]
+#   # starting values
+#   y <- c("A1" = 100, "P" = static.grid.search2[i, "TP_in"], "N" = static.grid.search2[i, "TN_in"])
+#   run <- ode(y, times, parms = static.algae, func = static.stoich.zmix)
+#   return(run[max(times),])
+# })
+# # convert to df
+# static.grid.search.out <- do.call(rbind, static.grid.search.out)
+# static.grid.search.out <- as_data_frame(static.grid.search.out)
+# (end <- Sys.time())
+# time.elapsed <- (end - start)
+# print(paste0("Time elapsed = ", time.elapsed, " hours!"))
+# # add to grid
+# static.grid.search2$est_GPP <- static.grid.search.out$GPP
+```
+
+calculate performance/error metrics
+mean absolute error, nash-sutcliffe efficiency
+
+```{r}
+# calculate error metrics to find the "best" model runs
+static.grid.search2.metrics <- static.grid.search2 %>%
+  group_by(minQP1, minQN1, umax1) %>%
+  summarise(MAE = mean(abs(GPP - est_GPP)), # lower is better
+            RMSE =  sqrt((mean(GPP - est_GPP)^2)), # lower is better
+            NSE = 1 - sum((GPP - est_GPP)^2) / sum((GPP - mean(GPP))^2)  # closer to one is better; below 0 is not good
+            )  %>%
+  mutate(NSE = 1/(2 - NSE)) # normalize NSE to 0 to 1
+  
+  
+
+```
+dynamic model
 
 ```{r}
 
-static.grid.search <- expand.grid(
-  KP1 = 16.5,
-  KN1 =  50,
-  minQP1 =  seq(0.01, 0.2, 0.02),
-  minQN1 = seq(0.01, 0.2, 0.02),
-  umax1 = seq(0.1, 1, 0.02)
-)
-
-# repeat grid nrow(corman2) times
-static.grid.search2 <- static.grid.search %>% 
-  slice(rep(1:n(), each = nrow(corman2)))
-
-# add in corman2 data
-static.grid.search2$Lake <- rep(corman2$Lake, nrow(static.grid.search))
-static.grid.search2$GPP <- rep(corman2$GPP, nrow(static.grid.search))
-static.grid.search2$TN_in <- rep(corman2$TN_in, nrow(static.grid.search))
-static.grid.search2$TP_in <- rep(corman2$TP_in, nrow(static.grid.search))
-static.grid.search2$SA <- rep(corman2$SA, nrow(static.grid.search))
-static.grid.search2$DOC_mgL <- rep(corman2$DOC_mgL, nrow(static.grid.search))
-static.grid.search2$z <- rep(corman2$z, nrow(static.grid.search))
-
-#this would take over 10 hrs to run....maybe best to outsource to HCC??? but can do this later
-(start <- Sys.time())
-static.grid.search.out <- lapply(1:nrow(static.grid.search2), function(i){
-  print(i)
-  # indexing
-  static.algae["SA"] = static.grid.search2[i, "SA"]
-  static.algae["DOC"] = static.grid.search2[i, "DOC_mgL"]
-  static.algae["z"] = static.grid.search2[i, "z"]
-  static.algae["KP1"] = static.grid.search2[i, "KP1"]
-  static.algae["KN1"] = static.grid.search2[i, "KN1"]
-  static.algae["QP1"] = static.grid.search2[i, "minQP1"]
-  static.algae["QN1"] = static.grid.search2[i, "minQN1"]
-  static.algae["umax1"] = static.grid.search2[i, "umax1"]
-  static.algae["Pin"] = static.grid.search2[i, "TP_in"]
-  static.algae["Nin"] = static.grid.search2[i, "TN_in"]
-  # starting values
-  y <- c("A1" = 100, "P" = static.grid.search2[i, "TP_in"], "N" = static.grid.search2[i, "TN_in"])
-  run <- ode(y, times, parms = static.algae, func = static.stoich.zmix)
-  return(run[max(times),])
-})
-# convert to df
-static.grid.search.out <- do.call(rbind, static.grid.search.out)
-static.grid.search.out <- as_data_frame(static.grid.search.out)
-(end <- Sys.time())
-time.elapsed <- (end - start)/60/60
-print(paste0("Time elapsed = ", time.elapsed, " hours!"))
-# add to grid
-static.grid.search2$est_GPP <- static.grid.search.out$GPP
+# dynamic.grid.search <- expand.grid(
+#   minQP1 =  seq(0.01, 0.2, 0.01),
+#   minQN1 = seq(0.01, 0.2, 0.01),
+#   umax1 = c(0.4, 0.6, 0.8)
+# )
+# dynamic.grid.search$KP1 = 16.5
+# dynamic.grid.search$KN1 = 50
+# dynamic.grid.search$upP1 = 0.426
+# dynamic.grid.search$upN1 = 2.45
+# # repeat grid nrow(corman2) times
+# dynamic.grid.search2 <- dynamic.grid.search %>% 
+#   slice(rep(1:n(), each = nrow(corman2)))
+# 
+# # add in corman2 data
+# dynamic.grid.search2$Lake <- rep(corman2$Lake, nrow(dynamic.grid.search))
+# dynamic.grid.search2$GPP <- rep(corman2$GPP, nrow(dynamic.grid.search))
+# dynamic.grid.search2$TN_in <- rep(corman2$TN_in, nrow(dynamic.grid.search))
+# dynamic.grid.search2$TP_in <- rep(corman2$TP_in, nrow(dynamic.grid.search))
+# dynamic.grid.search2$SA <- rep(corman2$SA, nrow(dynamic.grid.search))
+# dynamic.grid.search2$DOC_mgL <- rep(corman2$DOC_mgL, nrow(dynamic.grid.search))
+# dynamic.grid.search2$z <- rep(corman2$z, nrow(dynamic.grid.search))
+# 
+# #this would take over 10 hrs to run....maybe best to outsource to HCC??? but can do this later
+# (start <- Sys.time())
+# dynamic.grid.search.out <- lapply(1:nrow(dynamic.grid.search2), function(i){
+#   #print(i)
+#   # indexing
+#   dynamic.algae["SA"] = dynamic.grid.search2[i, "SA"]
+#   dynamic.algae["DOC"] = dynamic.grid.search2[i, "DOC_mgL"]
+#   dynamic.algae["z"] = dynamic.grid.search2[i, "z"]
+#   dynamic.algae["KP1"] = dynamic.grid.search2[i, "KP1"]
+#   dynamic.algae["KN1"] = dynamic.grid.search2[i, "KN1"]
+#   dynamic.algae["QP1"] = dynamic.grid.search2[i, "minQP1"]
+#   dynamic.algae["QN1"] = dynamic.grid.search2[i, "minQN1"]
+#   dynamic.algae["umax1"] = dynamic.grid.search2[i, "umax1"]
+#   dynamic.algae["Pin"] = dynamic.grid.search2[i, "TP_in"]
+#   dynamic.algae["Nin"] = dynamic.grid.search2[i, "TN_in"]
+#   # starting values
+#   y <- c("A1" = 100, "P" = dynamic.grid.search2[i, "TP_in"], "N" = dynamic.grid.search2[i, "TN_in"],
+#          "QP1" = 0.015, "QN1" = 0.1)
+#   run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich.zmix)
+#   return(run[max(times),])
+# })
+# # convert to df
+# dynamic.grid.search.out <- do.call(rbind, dynamic.grid.search.out)
+# dynamic.grid.search.out <- as_data_frame(dynamic.grid.search.out)
+# (end <- Sys.time())
+# time.elapsed <- (end - start)
+# print(paste0("Time elapsed = ", time.elapsed, " hours!"))
+# # add to grid
+# dynamic.grid.search2$est_GPP <- dynamic.grid.search.out$GPP
 ```
 
+calculate performance/error metrics
+mean absolute error, nash-sutcliffe efficiency
+
+```{r}
+# calculate error metrics to find the "best" model runs
+dynamic.grid.search2.metrics <- dynamic.grid.search2 %>%
+  group_by(minQP1, minQN1, umax1) %>%
+  summarise(MAE = mean(abs(GPP - est_GPP)), # lower is better
+            RMSE =  sqrt((mean(GPP - est_GPP)^2)), # lower is better
+            NSE = 1 - sum((GPP - est_GPP)^2) / sum((GPP - mean(GPP))^2)  # closer to one is better; below 0 is not good
+            ) %>%
+  mutate(NSE = 1/(2 - NSE)) # normalize NSE to 0 to 1
+  
+
+```
+merge output of grid search/optimization; save file for easy loading
+
+```{r}
+# add ID
+# static.grid.search2.metrics$model <- "static"
+# dynamic.grid.search2.metrics$model <- "dynamic"
+# # merge
+# grid.optim <- bind_rows(static.grid.search2.metrics, dynamic.grid.search2.metrics)
+# grid.optim$model <- factor(grid.optim$model, levels = c("static", "dynamic"))
+# 
+# save(grid.optim, file = "corman_grid_optim.Rdata")
+load("corman_grid_optim.Rdata")
+```
+
+
+overview of output metrics
+```{r}
+# dynamic model outperforms static model in each category but varies a lot less; 
+# this is somewhat tautological as the model is sensitive to minimum cell quotas and the dynamic model allows for cell quotas to vary; I suspect the model moves towards some "optimal" cell N:P
+corman_grid_optim %>% split(.$model) %>% map(summary)
+```
+
+overview plot
+
+```{r}
+# general overview
+corman_grid_optim %>%
+  gather("Metric", "Value", -minQP1, -minQN1, -umax1, -model) %>%
+  ggplot(aes(Metric, Value, fill = model)) + 
+  geom_violin()
+
+# model fit and parameterization
+corman_grid_optim %>%
+  gather("Metric", "Value", -minQP1, -minQN1, -umax1, -model) %>%
+  gather("Trait", "Trait.Value", -Metric, -Value, -model) %>%
+  ggplot(aes(Trait.Value, Value, col = model)) + 
+  geom_point() + 
+  ggh4x::facet_grid2(Trait ~ Metric, scales = "free", independent = "all")
+
+```
+
+select "best" runs
+
+```{r}
+
+# static model
+# 400 out of 1,200 runs fit this criterion, --> lots of equifinality
+best.static <- corman_grid_optim %>%
+  filter(model == "static") %>%
+  filter(MAE == min(MAE) & RMSE == min(RMSE) & NSE == max(NSE))
+
+# dynamic model
+# 400 out of 1,200 runs fit this criterion, --> lots of equifinality
+best.dynamic <- corman_grid_optim %>%
+  filter(model != "static") %>%
+  filter(MAE == min(MAE) & RMSE == min(RMSE) & NSE == max(NSE))
+
+# seeing as we end up with equifinality, it doesn't really matter which set of paramters are used to run the models
+
+```
+
+
+run models with best paramter selection
+
+```{r}
+
+# static
+best.static.run <- static.algae
+best.static.run["miNQP1"] <- 0.01
+best.static.run["miNQN1"] <- 0.01
+best.static.run["umax1"] <- 0.8
+best.static.run <-  lapply(1:nrow(in.grid), function(i) {
+    best.static.run["Pin"] = in.grid[i, "TP_in"]
+    best.static.run["Nin"] = in.grid[i, "TN_in"]
+    best.static.run["DOC"] = in.grid[i, "DOC_mgL"]
+    best.static.run["z"] = in.grid[i, "z"]
+    best.static.run["SA"] = in.grid[i, "SA"]
+    y <- c("A1" = 100, "P" =in.grid[i, "TP_in"], "N" = in.grid[i, "TN_in"])
+    run <- ode(y, times, parms = best.static.run, func = static.stoich.zmix)
+    return(run[max(times),])
+})
+best.static.run <- do.call(rbind, best.static.run)
+best.static.run <- as_data_frame(best.static.run)
+# combine with initial input data for plotting
+best.static.run$obs.GPP <- in.grid$GPP
+best.static.run$Lake <- in.grid$Lake
+best.static.run$est.GPP <- best.static.run$GPP
+# calculate Rsq value
+best.static.run %>%
+  mutate(
+    log10GPP = ifelse(is.infinite(log10(obs.GPP)), NA, log10(obs.GPP)),
+    log10estGPP = ifelse(is.infinite(log10(est.GPP)), NA, log10(est.GPP))
+  ) %>%
+  lm(log10estGPP ~ log10GPP, data = .) %>%
+  summary()
+
+
+# dynamic
+best.dynamic.run <- dynamic.algae
+best.dynamic.run["miNQP1"] <- 0.01
+best.dynamic.run["miNQN1"] <- 0.01
+best.dynamic.run["umax1"] <- 0.8
+best.dynamic.run <-  lapply(1:nrow(in.grid), function(i) {
+    best.dynamic.run["Pin"] = in.grid[i, "TP_in"]
+    best.dynamic.run["Nin"] = in.grid[i, "TN_in"]
+    best.dynamic.run["DOC"] = in.grid[i, "DOC_mgL"]
+    best.dynamic.run["z"] = in.grid[i, "z"]
+    best.dynamic.run["SA"] = in.grid[i, "SA"]
+    y <- c("A1" = 100, "P" =in.grid[i, "TP_in"], "N" = in.grid[i, "TN_in"], "QP1" = 0.015, "QN1" = 0.1)
+    run <- ode(y, times, parms = best.dynamic.run, func = dynamic.stoich.zmix)
+    return(run[max(times),])
+})
+best.dynamic.run <- do.call(rbind, best.dynamic.run)
+best.dynamic.run <- as_data_frame(best.dynamic.run)
+# combine with initial input data for plotting
+best.dynamic.run$obs.GPP <- in.grid$GPP
+best.dynamic.run$Lake <- in.grid$Lake
+best.dynamic.run$est.GPP <- best.dynamic.run$GPP
+# calculate Rsq value
+best.dynamic.run %>%
+  mutate(
+    log10GPP = ifelse(is.infinite(log10(obs.GPP)), NA, log10(obs.GPP)),
+    log10estGPP = ifelse(is.infinite(log10(est.GPP)), NA, log10(est.GPP))
+  ) %>%
+  lm(log10estGPP ~ log10GPP, data = .) %>%
+  summary()
+
+```
+create figure of best run plot
+
+```{r}
+
+(best.run.plt <- bind_rows(
+  best.static.run, best.dynamic.run
+) %>%
+  mutate(model = rep(c("static", "dynamic"), each = nrow(best.static.run)),
+         model = factor(model, levels = c("static", "dynamic"))) %>%
+  ggplot(aes(log10(obs.GPP), log10(est.GPP), pch = Lake)) + 
+  geom_point() + 
+  geom_smooth(inherit.aes = F, aes(x = log10(obs.GPP), y = log10(est.GPP)), method = "lm") + 
+  facet_wrap(model~., scales = "free_y") + 
+  labs(x = expression("log"[10] ~ "(GPP mg C L"^-1 ~ "day"^-1 ~ ")"), 
+       y = expression("log"[10] ~ "(modelled GPP mg C L"^-1 ~ "day"^-1 ~ ")"),
+       shape = NULL) + 
+   scale_shape_manual(
+     values = c(
+       "Acton" = 0,
+       "EastLong" = 1,
+       "Feeagh" = 2,
+       "Harp" = 3,
+       "Langtjern" = 4,
+       "Lillinoah" = 5,
+       "Lillsjoliden" = 6,
+       "Mangstrettjarn" = 7,
+       "Mendota" = 8,
+       "Morris" = 9,
+       "Struptjarn" = 10,
+       "Trout" = 11,
+       "Vortsjarv" = 12
+     )
+   ) + 
+   theme(legend.position = "right"))
+
+```
 
 

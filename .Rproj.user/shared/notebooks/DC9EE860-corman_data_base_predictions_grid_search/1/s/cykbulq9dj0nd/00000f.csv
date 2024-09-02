@@ -1,0 +1,10 @@
+"0","# calculate error metrics to find the ""best"" model runs
+static.grid.search2.metrics <- static.grid.search2 %>%
+  group_by(minQP1, minQN1, umax1) %>%
+  summarise(MAE = mean(abs(GPP - est_GPP)), # lower is better
+            RMSE =  sqrt((mean(GPP - est_GPP)^2)), # lower is better
+            NSE = 1 - sum((GPP - est_GPP)^2) / sum((GPP - mean(GPP))^2)  # closer to one is better; below 0 is not good
+            )  %>%
+  mutate(NSE = 1/(2 - NSE)) # normalize NSE to 0 to 1
+"
+"2","`summarise()` has grouped output by 'minQP1', 'minQN1'. You can override using the `.groups` argument."

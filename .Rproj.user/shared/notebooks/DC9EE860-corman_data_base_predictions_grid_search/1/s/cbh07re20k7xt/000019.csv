@@ -1,0 +1,4 @@
+"0","save(list = grid.optim, file = ""corman_grid_optim.Rdata"")
+"
+"2","Error in FUN(X[[i]], ...) : invalid first argument
+"

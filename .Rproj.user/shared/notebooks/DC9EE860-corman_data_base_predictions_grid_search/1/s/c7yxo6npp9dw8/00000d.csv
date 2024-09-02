@@ -1,0 +1,5 @@
+"0","# general overview"
+"0","corman_grid_optim %>%"
+"0","  gather(""Metric"", ""Value"", -minQP1, -minQN1, -umax1, -model) %>%"
+"0","  ggplot(aes(Metric, Value, fill = model)) + "
+"0","  geom_violin()"

@@ -9,44 +9,40 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+### Notes for Daniel, others
+
+-   Use mass N:P ratios of 14, 30 to indicate N and P limitation; see (Downing and McCauley)[https://aslopubs.onlinelibrary.wiley.com/doi/pdf/10.4319/lo.1992.37.5.0936]
+
+
 ## Introduction
 
-### Experiment 1
+#### Objectives/research questions:
 
-We explored how co-varying nutrient loads influence lake gross primary production (GPP) and phytoplankton stoichiometry. We explored GPP across a range of inflow P concentrations from 0.005 to 0.500 g P m^-3^ and inflow N concentrations from 0.005 to 1000 g N m^-3^ (**We can update these values with more realistic ranges from the literature**). We ran simulations for these loads for models including static and flexible representations of phytoplankton stoichiometry.
+1.  How does lake gross primary production (GPP) vary across N and P loads and N:P stoichiometry?
 
--   We hypothesized that increasing N and P loads would result in higher rates of GPP but that GPP would be constrained by the relative supply of N and P. That is GPP should be low at extremely high and low inflow N:P ratios. We hypothesized that luxury uptake of N and P would result in more complex patterns of GPP.
+2.  How does model structure (Michaelis-Menten/static stoichiometry vs. Droop/plastic stoichiometry) influence patterns of lake GPP across N and P loads and N:P stoichiometry?
 
--   We hypothesized that phytoplankton N:P would increase and decrease respectively with increasing inflow N and P concentrations, and that the ability for luxury uptake of N and P would produce extremely high and low N:P phytoplankton stoichiometry.
+3.  Explore how algae physiology influences GPP. Do physiological differences between main groups of algae (blue-greens, greens and diatoms) influence patterns of GPP in lakes? If so, what physiological variables are driving this variation (see also sensitivity analysis)?
 
-### Experiment 2
-
-We explored how GPP varied as inflow concentrations of P and N changed in correlated ways (i.e. N:P is fixed). We ran scenarios in which we increased inflow P concentrations from 0.005 to 0.500 g P m^-3^ and varied inflow concentrations at N:P mass ratios of 90.44, 22.61, 7.24, 2.26 (molar ratios of 200, 50, 16, 5).
-
--   We hypothesized that we would observe the highest levels of GPP when loads where stoichiometrically balanced (i.e. close to Redfield ratio of 7.24 N:P by mass), and that GPP would decrease with increasing and decreasing N:P from Redfield.
-
-### Experiment 3
-
-We examined how different phytoplankton groups influenced GPP. For this, we re-ran simulations from experiments 1 and 2 with models populated with 3 phytoplankton groups (diatoms, green algae, cyanobacteria) which have different trait values.
-
-Diatoms, greens, cyanos comparison
-
-### Experiment 4
-
-Explore variation in phytoplankton traits; still working on this.
 
 ## Setup
 
 The chunks in this section load packages, models and data needed to run the models.
 
 ```{r setup environment and load traits, include=F, warning=F, message=F}
-pck <- c("deSolve", "tidyverse", "cowplot", "ggsci", "ggpubr", "ggtern")
+# load packages
+pck <- c("deSolve", "tidyverse", "cowplot", "ggthemes", "wesandersen", "ggpubr")
 lapply(pck, require, character.only = T)
-theme_set(theme_cowplot() + 
-            theme(legend.justification = "center",
-                  legend.position = "bottom", 
-                  legend.text = element_text(),
-                  legend.title = element_text()))
+# set plotting theme
+theme_set(theme_solarized(light=F) + 
+          theme(text = element_text(color = "white"), 
+                axis.text = element_text(color = "white"),
+                axis.title = element_text(color = "white"),
+                legend.text = element_text(color = "white"),
+                legend.title = element_text(color = "white"),
+                legend.justification = "center", 
+                legend.position = "bottom"))
+
 # load ODE models 
 # saved in external files for convenience
 # Michalis-Menten model
@@ -58,7 +54,8 @@ source("models/droop_single_noLight.R") # droop model, one algae species; model 
 traits <- read_csv("data4input/phyto_traits4models_21June2024.csv")[,-1]
 
 # set up scenarios
-times <- 1:500
+times <- 1:2000
+times <- 1:1000 # for troubleshooting, initial runs
 
 ```
 
@@ -345,21 +342,27 @@ cyanos.droop <- unlist(cyanos.droop)
 
 ```
 
-## Running models (can ignore this)
+## Running models 
 
-The next couple of code chunks run the models for the different simulations/experiments described in the introduction section. They shouldn't produce any visible output, and you shouldn't have to touch any of the code.
+The next couple of code chunks run the models for the different simulations/experiments described in the introduction section. 
 
 ### Experiment 1
 
-Run models using Michaelis-Menten and Droop formulation and **average** phytoplankton traits across simulatenously varying N and P loads.
+Run models using Michaelis-Menten and Droop formulation and **average** phytoplankton traits across simultaneously varying N and P loads.
+
+#### Model runs
 
 ```{r run models for experiment 1, include=F, message=F, warning=F}
 
 # nutrient loads
-# P = 0.005 to 0.150 g m^-3 = 5 to 150 mg m^-3
-# N = 0.005 to 0.150 g m^-3 = 5 to 150 mg m^-3
-exp1.loads <- expand.grid(Pin = seq(5, 500,20),
-                                Nin = seq(5, 1000, 20))
+# N, P = 5 to 1000 mg L^-1; 1 mg L^-1 = 1000 mg m^-1
+# 100 for now, will increase later
+# loads
+# Olson&Jones use 20 to 500 for P. Use similar values
+# for TP: TP from 2018-219 NLA stream assessment ranges from 2 to 950 ugL with 25th and 7th percentiles of 23 and 133 ugL. DG, August 2024
+# for TN: TN from 2018-2019 NLA Stream Assessment ranges from 22 to 22,000 ugL with 25th and 75th percentiles of 300 and 14,000 ug L; DG, August 2024
+exp1.loads <- expand.grid(Pin = seq(20, 500, 50 ) ,
+                     Nin = seq(100,15000,500))
 
 ## michaelis-menten model
 # apply over scenarios
@@ -374,7 +377,6 @@ exp1.mich <- lapply(1:nrow(exp1.loads), function(i) {
   return(run[max(times),])
   
 })
-
 exp1.mich <- do.call(rbind, exp1.mich)
 exp1.mich <- as_data_frame(exp1.mich)
 exp1.mich$Pin <- exp1.loads$Pin
@@ -411,18 +413,120 @@ exp1.data <- bind_rows(
 
 ```
 
+#### Output
+
+Notes: 
+
+- GPP higher for Michaelis-Menten than for Droop model
+- strong stoichiometric relationship between GPP and nutrient load stoichiometry: GPP is generally highest when loads have an N:P aproaching the Redfield ratio
+  - indicated by N and P limitation "below" and "above" 16:1 line
+  - however ZNGIs don't 100% match the Redfield ratio, suggests some wiggle room but ideal load stoichiometry should fall within this region.
+- Downing and McCauley suggest N and P limitation below and above N:P ratios of 14, 30; does not entirely match with our results; isoclines from ZNGIs indicate N and P limitation at much lower ratios (would be great to extract value of these isoclines and check out their N:P ratios)
+- cell C:N:P changes predictably with nutrient loads; at low N:P loads C:N increases and vice versa for C:P. For both C:N and C:P, changes in cell quotas seem to match the Redfield ratio; however, this is not the case for cell N:P for which Downing and McCauley's ratios appear to align better with changes in cell quotas. 
+
+```{r code chunk for summary and notes, include = F}
+range(exp1.data$GPP)
+mean(exp1.data$GPP)
+
+range(exp1.data[exp1.data$model == "Michaelis-Menten", ]$GPP)
+median(exp1.data[exp1.data$model == "Michaelis-Menten", ]$GPP)
+
+range(exp1.data[exp1.data$model == "Droop", ]$GPP)
+median(exp1.data[exp1.data$model == "Droop", ]$GPP)
+
+
+```
+
+Create figure of GPP across N and P gradients
+
+```{r plot output for experiment 1, echo=F, message=F, warning=F, fig.height=5, fig.width=10}
+
+## plot GPP for experiment 1
+(fig.exp1.gpp <- exp1.data %>%
+  ggplot(aes(Pin, Nin, fill = GPP)) + 
+  geom_raster() + 
+  facet_wrap(model~., ncol = 2, nrow = 1) + 
+  # Redfield
+  geom_abline(intercept = 0, slope =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_abline(intercept = 0, slope  = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  labs(x = expression("Inflow P ug L"^-1), y = expression("Inflow N ug L"^-1),
+       fill = expression("GPP mg C L"^-1 ~ "day"^-1)) +
+  scale_fill_viridis_c()) 
+
+
+## plot N:P for experiment 1
+# QN
+fig.exp1.np1 <- exp1.data %>%
+  filter(model == "Droop") %>%
+  ggplot(aes(Pin, Nin, fill = 1/QN1)) + 
+  geom_raster() + 
+  # Redfield
+  geom_vline(xintercept =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_vline(xintercept = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  labs(x = expression("Inflow P ug L"^-1), y = expression("Inflow N ug L"^-1),
+       fill = "Cell C:N mass") + 
+  scale_fill_viridis_c()
+# QP
+fig.exp1.np2 <- exp1.data %>%
+  filter(model == "Droop") %>%
+  ggplot(aes(Pin, Nin, fill = 1/QP1)) + 
+  geom_raster() + 
+ # Redfield
+  geom_vline(xintercept =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_vline(xintercept = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  labs(x = expression("Inflow P ug L"^-1), y = expression("Inflow N ug L"^-1),
+       fill = "Cell C:P mass") + 
+  scale_fill_viridis_c()
+# N:P
+fig.exp1.np3 <- exp1.data %>%
+  filter(model == "Droop") %>%
+  mutate(N_P_cell = QN1/QP1) %>%
+  ggplot(aes(Pin, Nin, fill = N_P_cell)) + 
+  geom_raster() + 
+  # Redfield
+  geom_vline(xintercept =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_vline(xintercept = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  labs(x = expression("Inflow P ug L"^-1), y = expression("Inflow N ug L"^-1),
+       fill = expression("Cell N:P mass")) + 
+  scale_fill_viridis_c()
+# merge to produce figure
+fig.exp1.cnp <- ggarrange(
+  plotlist = list(fig.exp1.np1, fig.exp1.np2, fig.exp1.np3),
+  nrow = 1, ncol = 3, align = "hv", labels = c("a", "b", "c"))
+fig.exp1.cnp
+
+# save files for now, will re-run this each time
+# save_plot("figures/GPP_framework_exp1_GPP.png", fig.exp1.gpp, 
+#           base_height = 4, base_width = 9, dpi = 400)
+# save_plot("figures/GPP_framework_exp1_CNP.png", fig.exp1.cnp, 
+#           base_height = 4, base_width = 9, dpi = 400)
+```
 
 ### Experiment 2
 
-Run models using Michaelis-Menten and Droop formulation and **average** phytoplankton traits across varying P loads and **fixed** N:P stoichiometry of 90.44, 22.61, 7.24, 2.26 by mass..
+Run models using Michaelis-Menten and Droop formulation and **average** phytoplankton traits across varying P loads and **fixed** N:P stoichiometry.
+
+#### Model runs
 
 ```{r run models for experiment 2, include=F, message=F, warning=F}
 
 # nutrient loads
-# P = 0.005 to 0.150 g m^-3 = 5 to 150 mg m^-3
+# P = 5 to 1000 mg L^-1; 1 mg L^-1 = 0.001 mg m^-1
 # N:P = 22.61, 13.57, 9.04, 7.24, 4.52, 2.26  by mass
-exp2.loads <- expand.grid(Pin = seq(5, 500,10),
-                                NP_inflow = c(90.44, 22.61, 7.24, 2.26))
+exp2.loads <- expand.grid(Pin = seq(20,500, 50),
+                          NP_inflow = seq(5, 100, 5))
 exp2.loads$Nin <- exp2.loads$Pin * exp2.loads$NP_inflow
 
 ## michaelis-menten model
@@ -472,23 +576,89 @@ exp2.data <- bind_rows(
 ) %>%
   mutate(model = factor(model, levels = c("Michaelis-Menten", "Droop")))
 
+
 ```
+
+#### Output
+
+```{r plot figures for experiment2, fig.width=9, fig.height=4}
+
+fig.exp2.gpp <- exp2.data %>%
+  ggplot() +
+  geom_line(aes(NP_inflow, GPP, col = Pin, group = Pin), lwd = .75) + 
+  geom_point(aes(NP_inflow, GPP ,fill = Pin), size = 2, pch = 21, col = "white") + 
+  # Redfield
+  geom_vline(xintercept =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_vline(xintercept = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  facet_wrap(model~.) + 
+  scale_x_continuous(breaks = c(5, 25, 50, 75, 100)) + 
+  scale_color_viridis_c()  +
+  scale_fill_viridis_c() + 
+  guides(fill = "none") + 
+  labs(x = "Inflow N:P (mass)", 
+       y = expression("GPP mg C L"^-1 ~ "day"^-1), 
+       col = expression("Inflow P ug L"^-1))
+
+fig.exp2.gpp
+
+# changes in C:N:P
+# plot inflow N:P against cell N:P
+fig.exp2.cnp <- exp2.data %>%
+  filter(model == "Droop") %>%
+  mutate("C:N" = 1/QN1,"C:P" = 1/QP1, "N:P" = QN1/QP1) %>%
+  select(`C:N`, `C:P`, `N:P`,Pin, NP_inflow) %>%
+  gather("seston", "value", -Pin, -NP_inflow) %>%
+  mutate(seston = factor(seston, levels = c("C:N", "C:P", "N:P"))) %>% 
+  ggplot() + 
+  geom_line(aes(NP_inflow, value, col = Pin, group = Pin), lwd = .75) + 
+  geom_point(aes(NP_inflow, value,fill = Pin), size = 2, pch = 21, col = "white") + 
+   # Redfield
+  geom_vline(xintercept =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_vline(xintercept = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  facet_wrap(seston~., scales = "free_y") + 
+  labs(x = "N:P inflow (mass)",
+       y = "Cell C:N:P (mass)",
+       col = expression("Inflow P ug L"^-1), 
+       fill = NULL) +
+  scale_x_continuous(breaks = c(5, 25, 50, 75, 100)) + 
+  scale_fill_viridis_c() + 
+  scale_color_viridis_c() + 
+  guides(fill = "none")
+fig.exp2.cnp
+
+# 
+# save_plot("figures/GPP_framework_exp2_gpp.png", fig.exp2.gpp, 
+#           base_height = 4, base_width = 9, dpi = 400)
+# save_plot("figures/GPP_framework_exp2_cno.png", fig.exp2.cnp, 
+#           base_height = 4, base_width = 9, dpi = 400)
+
+```
+
+
 
 
 ### Experiment 3
 
-Experiment 3 re-runs experiments 1 and 2 for the three phytoplankton groups.
+#### Model runs
 
-#### Experiment 3 pt 1
+Experiment 3 pt 1
 
 ```{r run models for experiment 3 pt1, include=F, message=F, warning=F}
 
 
 # nutrient loads
-# P = 0.005 to 0.150 g m^-3 = 5 to 150 mg m^-3
-# N = 0.005 to 0.150 g m^-3 = 5 to 150 mg m^-3
-exp3.loads <- expand.grid(Pin = seq(5, 500,20),
-                                Nin = seq(5, 1000, 20))
+# Olson&Jones use 20 to 500 for P. Use similar values
+# for TP: TP from 2018-219 NLA stream assessment ranges from 2 to 950 ugL with 25th and 7th percentiles of 23 and 133 ugL. DG, August 2024
+# for TN: TN from 2018-2019 NLA Stream Assessment ranges from 22 to 22,000 ugL with 25th and 75th percentiles of 300 and 14,000 ug L; DG, August 2024
+exp3.loads <- expand.grid(Pin = seq(20, 500, 50),
+                                Nin = seq(100, 15000, 500))
+
 
 ## michaelis-menten model
 # apply over scenarios and algal groups
@@ -538,16 +708,17 @@ exp3.data <- bind_rows(
 
 ```
 
-#### Experiment 3 pt 2
+Experiment 3 pt 2
 
 ```{r run models for experiment 3 pt2, include=F, message=F, warning=F}
 
 # nutrient loads
 # P = 0.005 to 0.150 g m^-3 = 5 to 150 mg m^-3
 # N:P = 22.61, 13.57, 9.04, 7.24, 4.52, 2.26  by mass
-exp3.loads2 <- expand.grid(Pin = seq(5, 500,10),
-                                NP_inflow = c(90.44, 22.61, 7.24, 2.26))
-exp3.loads2$Nin <- exp3.loads2$Pin * exp3.loads2$NP_inflow
+exp3.loads2 <- expand.grid(Pin = seq(20,500, 50),
+                          NP_inflow = seq(5, 100, 5))
+exp3.loads2$Nin <- exp2.loads$Pin * exp2.loads$NP_inflow
+
 
 ## michaelis-menten model
 # apply over scenarios and algal groups
@@ -599,348 +770,147 @@ exp3.data2 <- bind_rows(
 
 ```
 
-### Experiment 4
-
-```{r }
-
-mm.grid <- expand.grid(
-  KN1 = seq(0.01, 0.1, 0.01) * 1000,
-  KP1 = seq(0.005, 0.05, 0.005) * 1000,
-  QP1 = c(0.01, 0.03, 0.05),
-  QN1 = 0.1,
-  #QP1 = seq(0.01, 0.1, 0.01),
-  #QN1 = seq(0.01, 0.2, 0.05),
-  Nin = c(5, 50, 100),
-  Pin = c(5, 50, 100)
-)
-
-```
+#### Output
 
 ```{r}
-sims <- lapply(1:nrow(mm.grid), function(i) {
-  params.mich["Pin"] = mm.grid[i, "Pin"]
-  params.mich["Nin"] = mm.grid[i, "Nin"]
-  params.mich["QP1"] = mm.grid[i, "QP1"]
-  params.mich["QN1"] = mm.grid[i, "QN1"]
-  params.mich["KP1"] = mm.grid[i, "KP1"]
-  params.mich["KN1"] = mm.grid[i, "KN1"]
-  y <- c("A1" = 100,
-         "P" = mm.grid[i, "Pin"],
-         "N" = mm.grid[i, "Nin"])
-  
-  run <- ode(y, times, parms = params.mich, func = mich.single)
-  return(run[max(times),])
-  
-})
-
-sims <- do.call(rbind, sims)
-sims <- as_data_frame(sims)
-sims <- bind_cols(sims, mm.grid)
-
-sims$scale_KN <- unlist(scale(sims$KN1)[,1])
-sims$scale_KP <- unlist(scale(sims$KP1)[,1])
-sims$scale_QN <- unlist(scale(sims$QN1)[,1])
-sims$scale_QP <- unlist(scale(sims$QP1)[,1])
-
-```
-
-```{r}
-library(ggtern)
-
-sims %>% 
-  ggtern(aes(KN1, KP1, QP1, col = A1)) + 
-  geom_point() + 
-  facet_grid(Pin~Nin)
-
-```
-
-
-
-
-
-## Output
-
-### Output for experiment 1
-
-Lake GPP increased with N and P inflow concentrations. Clear stoichiometric patterns for both model expressions where extreme inflow N:P ratios result in nutrient limitation. The areas of the plot where limitation occurs fall very close to the Redfield ratio (white line in figures). This is pretty cool but not necessarily novel? The Michaelis-Menten model creates step-wise changes in GPP whereas the Droop model is "smoother". 
-
-The changes in seston C:N are pretty intuitive: decreasing N:P of the inflow increases C:N (i.e. phytos accumulate C but not N, become strongly N limited), and vice versa for increasing N:P and C:P. There is a relatively narrow range of C:N compared to C:P or even N:P. 
-
-I think these results generically support stoichiometric theory; imbalanced N:P supply results in luxury uptake of the non-limiting nutrient; nutrient limitation increases C:X ratios.
-
-```{r plot output for experiment 1, echo=F, message=F, warning=F, fig.height=5, fig.width=9}
-
-## plot GPP for experiment 1
-(fig.exp1.gpp <- exp1.data %>%
-  ggplot(aes(Pin, Nin, fill = A1)) + 
+# plot GPP for experiment 3
+(fig.exp3.gpp <- exp3.data %>%
+  ggplot(aes(Pin, Nin, fill = GPP)) + 
   geom_raster() + 
-  facet_wrap(model~., ncol = 2, nrow = 1) + 
-  geom_abline(intercept = 0, slope = 16*14.007/30.974, 
-              lty = "dashed", col = "white", lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = expression("Inflow N mg m"^-3),
-       fill = expression("GPP mg C m"^-2 ~ "day"^-1)) + 
-  scale_fill_viridis_b(option = "C"))
+  facet_grid(model~species) + 
+# Redfield
+  geom_abline(intercept = 0, slope =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_abline(intercept = 0, slope = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  labs(x = expression("Inflow P ug L"^-1), y = expression("Inflow N ug L"^-1),
+       fill = expression("GPP mg C L"^-1 ~ "day"^-1)) + 
+  scale_fill_viridis_c())
 
-## plot N:P for experiment 1
+
+# plot cellular C:N:P for scenarios
 # QN
-fig.exp1.np1 <- exp1.data %>%
+fig.exp3.cn <- exp3.data %>%
   filter(model == "Droop") %>%
   ggplot(aes(Pin, Nin, fill = 1/QN1)) + 
   geom_raster() + 
-  geom_abline(intercept = 0, slope = 16*14.007/30.974, 
-              lty = "dashed", col = "white", lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = expression("Inflow N mg m"^-3),
+  # Redfield
+  geom_abline(intercept = 0, slope =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_abline(intercept = 0, slope = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  labs(x = expression("Inflow P ug L"^-1), y = expression("Inflow N ug L"^-1),
        fill = "Cell C:N mass") + 
-  scale_fill_viridis_b(option = "C")
+  facet_wrap(species~., nrow = 3) + 
+  scale_fill_viridis_c()
+fig.exp3.cn
 # QP
-fig.exp1.np2 <- exp1.data %>%
+fig.exp3.cp <- exp3.data %>%
   filter(model == "Droop") %>%
   ggplot(aes(Pin, Nin, fill = 1/QP1)) + 
   geom_raster() + 
-  geom_abline(intercept = 0, slope = 16*14.007/30.974, 
-              lty = "dashed", col = "white", lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = expression("Inflow N mg m"^-3),
+  # Redfield
+  geom_abline(intercept = 0, slope =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_abline(intercept = 0, slope = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  labs(x = expression("Inflow P ug L"^-1), y = expression("Inflow N ug L"^-1),
        fill = "Cell C:P mass") + 
-  scale_fill_viridis_b(option = "C")
+  facet_wrap(species~., nrow = 3) + 
+  scale_fill_viridis_c()
+fig.exp3.cp
 # N:P
-fig.exp1.np3 <- exp1.data %>%
+fig.exp3.np <- exp3.data %>%
   filter(model == "Droop") %>%
-  mutate(N_P_cell = QN1/QP1) %>%
-  ggplot(aes(Pin, Nin, fill = N_P_cell)) + 
+  ggplot(aes(Pin, Nin, fill = QN1/QP1)) + 
   geom_raster() + 
-  geom_abline(intercept = 0, slope = 16*14.007/30.974, 
-              lty = "dashed", col = "white", lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = expression("Inflow N mg m"^-3),
-       fill = expression("Cell N:P mass")) + 
-  scale_fill_viridis_b(option = "C")
-# merge to produce figure
-fig.exp1.np <- ggarrange(
-  plotlist = list(fig.exp1.np1, fig.exp1.np2, fig.exp1.np3),
-  nrow = 1, ncol = 3, align = "hv", labels = c("a", "b", "c"))
-fig.exp1.np
-
-```
-
-### Output for experiment 2
-
-__Note: For some reason the legend isn't rendering in my Markdown file. FYI the color legend shows increasing N:P of the inflow/supply by mass.__
-
-This is where stuff gets interesting! 
-While GPP increases with P inflow concentrations, stoichiometry constrains increases in biomass once the N:P of the inflow exceeds 23 by mass in biomass (approximately 50 by moles)! There should be a fourth line in orange in the first figure which overlaps with the yellow line.
-The Droop model produces lower estimates of GPP on average.
-
-Changes in seston stoichiometey show homeostasis with increasing P inflow concentrations! This also varies with the N:P of the inflow. Higher inflow N:P generally result in higher C:N, C:P and N:P.
-
-```{r plot output for experiment 2, echo=F, message=F, warning=F, fig.height=5, fig.width=9}
-
-## plot GPP for experiment 1
-(fig.exp2.gpp <- exp2.data %>%
-  ggplot(aes(Pin, A1, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  facet_wrap(model~., ncol = 2, nrow = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = expression("GPP mg C m"^-2 ~ "day"^-1),
-       col = "Inflow N:P (mass)") + 
-  scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0))
-
-## plot N:P for experiment 2
-# QN
-fig.exp2.np1 <- exp2.data %>%
-  filter(model == "Droop") %>%
-  ggplot(aes(Pin, 1/QN1, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = "Cell C:N mass",
-       col = "Inflow N:P (mass)") + 
-  scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0)
-# QP
-fig.exp2.np2 <- exp2.data %>%
-  filter(model == "Droop") %>%
-  ggplot(aes(Pin, 1/QP1, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y ="Cell C:P mass",
-       col = "Inflow N:P (mass)") + 
-  scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0)
-# N:P
-fig.exp2.np3 <- exp2.data %>%
-  filter(model == "Droop") %>%
-  mutate(N_P_cell = QN1/QP1) %>%
-  ggplot(aes(Pin, N_P_cell, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = "Cell N:P mass",
-       col = "Inflow N:P (mass)")  + 
-  scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0)
-# merge to produce figure
-fig.exp2.np <- ggarrange(
-  plotlist = list(fig.exp2.np1, fig.exp2.np2, fig.exp2.np3),
-  nrow = 1, ncol = 3, align = "hv", labels = c("a", "b", "c"))
-fig.exp2.np
-
-```
-
-### Output for experiment 3
-
-
-```{r plot figures for experiment3 pt1, echo=F, warning=F, message=F}
-
-# plot GPP for experiment 3
-(fig.exp3.gpp <- exp3.data %>%
-  ggplot(aes(Pin, Nin, fill = A1)) + 
-  geom_raster() + 
-  facet_grid(model~species) + 
-  geom_abline(intercept = 0, slope = 16*14.007/30.974, 
-              lty = "dashed", col = "white", lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = expression("Inflow N mg m"^-3),
-       fill = expression("GPP mg C m"^-2 ~ "day"^-1)) + 
-  scale_fill_viridis_b(option = "C"))
-
-
-```
-
-```{r plot figures for experiment3 pt1v2, echo=F, warning=F, message=F, fig.height=10, fig.width=8}
-## plot N:P for experiment 3
-# QN
-fig.exp3.np1 <- exp3.data %>%
-  filter(model == "Droop") %>%
-  ggplot(aes(Pin, Nin, fill = QN1/1)) + 
-  geom_raster() + 
-  facet_wrap(species~.) + 
-  geom_abline(intercept = 0, slope = 16*14.007/30.974, 
-              lty = "dashed", col = "white", lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = expression("Inflow N mg m"^-3),
-       fill = "C:N mass") + 
-  scale_fill_viridis_b(option = "C")
-# QP
-fig.exp3.np2 <- exp3.data %>%
-  filter(model == "Droop") %>%
-  ggplot(aes(Pin, Nin, fill = 1/QP1)) + 
-  geom_raster() + 
-  facet_wrap(species~.) + 
-  geom_abline(intercept = 0, slope = 16*14.007/30.974, 
-              lty = "dashed", col = "white", lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = expression("Inflow N mg m"^-3),
-       fill = "C:P mass") + 
-  scale_fill_viridis_b(option = "C")
-# N:P
-fig.exp3.np3 <- exp3.data %>%
-  filter(model == "Droop") %>%
-  mutate(N_P_cell = (QN1/14.007)/(QP1/30.974)) %>%
-  ggplot(aes(Pin, Nin, fill = N_P_cell)) + 
-  geom_raster() + 
-  facet_wrap(species~.) + 
-  geom_abline(intercept = 0, slope = 16, 
-              lty = "dashed", col = "white", lwd = 1) + 
-  labs(x = expression("Inflow P mg m"^-3), y = expression("Inflow N mg m"^-3),
-       fill = expression("N:P mass")) + 
-  scale_fill_viridis_b(option = "C")
-# merge to produce figure
-fig.exp3.np <- ggarrange(
-  plotlist = list(fig.exp3.np1, fig.exp3.np2, fig.exp3.np3),
-  nrow = 3, ncol = 1, align = "hv", labels = c("a", "b", "c"))
+  # Redfield
+  geom_abline(intercept = 0, slope =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_abline(intercept = 0, slope = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  labs(x = expression("Inflow P ug L"^-1), y = expression("Inflow N ug L"^-1),
+       fill = "Cell N:P mass") + 
+  facet_wrap(species~., nrow = 3) + 
+  scale_fill_viridis_c()
 fig.exp3.np
-```
-
-
-```{r plot output for experiment3 pt2, echo=F, message=F, warning=F, fig.height=5, fig.width=9}
-
-## plot GPP for experiment 3 pt 2
-(fig.exp3.pt.2gpp <- exp3.data2 %>%
-  ggplot(aes(Pin, A1, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  facet_grid(model~species) + 
-  labs(x = expression("Inflow P mg m"^-3), y = expression("GPP mg C m"^-2 ~ "day"^-1),
-       color = "Inflow N:P (mass)") + 
-  scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0))
-
-## plot N:P for experiment 3 pt2
-# QN
-fig.exp3.pt2.np1 <- exp3.data2 %>%
-  filter(model == "Droop") %>%
-  ggplot(aes(Pin, 1/QN1, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  facet_wrap(species~.) + 
-  labs(x = expression("Inflow P mg m"^-3), y = "Cell C:N mass",
-       col = "Inflow N:P (mass)") + 
-  scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0)
-# QP
-fig.exp3.pt2.np2 <- exp3.data2 %>%
-  filter(model == "Droop") %>%
-  ggplot(aes(Pin, 1/QP1, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  facet_wrap(species~.) + 
-  labs(x = expression("Inflow P mg m"^-3), y = "Cell C:P mass",
-       col = "Inflow N:P (mass)") + 
-  scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0)
-# N:P
-fig.exp3.pt2.np3 <- exp3.data2 %>%
-  filter(model == "Droop") %>%
-  mutate(N_P_cell = QN1/QP1) %>%
-  ggplot(aes(Pin, N_P_cell, col = NP_inflow, group = NP_inflow)) + 
-  geom_line(lwd = 1) + 
-  facet_wrap(species~.) + 
-  labs(x = expression("Inflow P mg m"^-3), y = "Cell N:P mass",
-       col = "Inflow N:P (mass)")  + 
-  scale_color_viridis_b(option = "C", breaks = round(c(90.44, 22.61, 7.24, 2.26)), 0)
 # merge to produce figure
-fig.exp3.pt2.np <- ggarrange(
-  plotlist = list(fig.exp3.pt2.np1, fig.exp3.pt2.np2, fig.exp3.pt2.np3),
+fig.exp3.cnp <- ggarrange(
+  plotlist = list(fig.exp3.cn, fig.exp3.cp, fig.exp3.np),
   nrow = 1, ncol = 3, align = "hv", labels = c("a", "b", "c"))
-fig.exp3.pt2.np
+fig.exp3.cnp
+
+
+save_plot("figures/GPP_framework_exp3_gpp.png", fig.exp3.gpp, 
+          base_height = 5, base_width = 9, dpi = 400)
+save_plot("figures/GPP_framework_exp3_cnp.png", fig.exp3.cnp, 
+          base_height = 5, base_width = 9, dpi = 400)
+
+
+# changes in C:N:P
+# plot inflow N:P against cell N:P
+fig.exp3.cnp.data <-  exp3.data2 %>%
+  filter(model == "Droop") %>%
+  mutate("C:N" = 1/QN1,"C:P" = 1/QP1, "N:P" = QN1/QP1) %>%
+  select(`C:N`, `C:P`, `N:P`,Pin, NP_inflow, species) %>%
+  gather("seston", "value", -Pin, -NP_inflow, -species) %>%
+  mutate(seston = factor(seston, levels = c("C:N", "C:P", "N:P")))
+
+fig.exp3.cnp.inflow <- ggplot() + 
+  # diatoms
+  geom_line(data = fig.exp3.cnp.data[fig.exp3.cnp.data$species == "Diatoms",],
+            aes(x = NP_inflow, y = value, col = Pin, group = Pin), lwd = .75) +
+  geom_point(data = fig.exp3.cnp.data[fig.exp3.cnp.data$species == "Diatoms",],
+             aes(x = NP_inflow, y = value,fill = Pin, pch = species),
+             pch = 21, size = 2, col = "white") +
+  # green-algae
+  geom_line(data = fig.exp3.cnp.data[fig.exp3.cnp.data$species == "Greens",],
+            aes(x = NP_inflow, y = value, col = Pin, group = Pin), lwd = .75) +
+  geom_point(data = fig.exp3.cnp.data[fig.exp3.cnp.data$species == "Greens",],
+             aes(x = NP_inflow, y = value,fill = Pin, pch = species),
+             pch = 22, size = 2, col = "white") +
+  # cyanobacteria
+  geom_line(data = fig.exp3.cnp.data[fig.exp3.cnp.data$species == "Cyanos",],
+            aes(x = NP_inflow, y = value, col = Pin, group = Pin), lwd = .75) +
+  geom_point(data = fig.exp3.cnp.data[fig.exp3.cnp.data$species == "Cyanos",],
+             aes(x = NP_inflow, y = value,fill = Pin, pch = species),
+             pch = 23, size = 2, col = "white") +
+   # Redfield
+  geom_vline(xintercept =  c(16*14.007/30.974), 
+              lty = "dashed", col = "white", lwd = 1) +
+  # Downing and McCauley
+  geom_vline(xintercept = c(14, 30), 
+              lty = "dashed", col = "black", lwd = 1) + 
+  facet_wrap(seston~., scales = "free_y") + 
+  labs(x = "N:P inflow (mass)",
+       y = "Cell C:N:P (mass)",
+       col = expression("Inflow P ug L"^-1), 
+       fill = NULL) +
+  scale_x_continuous(breaks = c(5, 25, 50, 75, 100)) + 
+  scale_fill_viridis_c() + 
+  scale_color_viridis_c() + 
+  scale_shape_manual(
+    values = c("21" = "Diatoms", "22" = "Greens", "23" = "Cyanos")) + 
+  guides(fill = "none") 
+fig.exp3.cnp.inflow
+
+save_plot("figures/GPP_framework_exp3_cnp_inflow.png", fig.exp3.cnp.inflow, 
+          base_height = 4, base_width = 9, dpi = 400)
 
 ```
 
-## Ternary plots
 
-I managed to generate ternary plots from the model outputs using the 'ggtern' package. Not sure how informative these figures are; the Redfield ratio is included as a back dot in each of the plots, and you can see how observations move towards or away from Redfield depending on the scenario.
 
-```{r data set up for ternary plots, include=F, message=F, warning=F}
+```{r create temp storage object for re-loading models in future}
 
-# add the average phytoplankton stoichiometry to the species traits
-# load simulations
-tern.data1 <- bind_rows(
-  exp1.data %>% filter(model == "Droop") %>% mutate(species = "Average"),
-  exp3.data %>% filter(model == "Droop")) %>% 
-  mutate(species = factor(species, 
-                          levels = c("Average", "Diatoms", "Greens", "Cyanos")),
-         # reframe ratios
-         "C:N" = 1/QN1, 
-         "C:P" = 1/QP1, 
-         "N:P" = QN1/QP1)
+save(list = c("exp1.data", "exp2.data", "exp3.data", "exp3.data2"),
+     file = "GPP_framework_temp_file.Rdata")
+load("GPP_framework_temp_file.Rdata")
 
-# add the average phytoplankton stoichiometry to the species traits
-# stoichiometry simulations
-tern.data2 <- bind_rows(
-   exp2.data %>% filter(model == "Droop") %>% mutate(species = "Average"),
-   exp3.data2 %>% filter(model == "Droop")) %>% 
-  mutate(species = factor(species, 
-                          levels = c("Average", "Diatoms", "Greens", "Cyanos")),
-         # reframe ratios
-         "C:N" = 1/QN1, 
-         "C:P" = 1/QP1, 
-         "N:P" = QN1/QP1)
 
 ```
 
-```{r generate ternarey plots, echo=F, message=F, warning=F}
-# load simulations
-(fig.loads.tern <- tern.data1 %>%
-  ggtern() + 
-  geom_point(aes(`C:N`, `C:P`, `N:P`, col = Pin)) + 
-  # manually add Refield ratio
-  geom_point(aes((106*12.001)/(16*14.007), 
-                 (106 * 12.001)/(1*30.974), 
-                 (16*14.007)/(1*30.974))) + 
-  scale_color_viridis_b(option = "C") + 
-  facet_wrap(species~., nrow = 2, ncol = 2))
-
-# stoichiometry simulations
-(fig.stoich.tern <- tern.data2 %>%
-    mutate(NP_inflow2 = paste0("N:P in = ", round(NP_inflow, 0))) %>%
-     ggtern() + 
-  geom_point(aes(`C:N`, `C:P`, `N:P`, col = Pin)) + 
-  # manually add Refield ratio
-  geom_point(aes((106*12.001)/(16*14.007), 
-                 (106 * 12.001)/(1*30.974), 
-                 (16*14.007)/(1*30.974))) + 
-  scale_color_viridis_b(option = "C") + 
-  facet_grid(species~NP_inflow2))
-
-```

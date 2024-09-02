@@ -400,6 +400,25 @@ gpp.combined$model <- factor(gpp.combined$model, levels = c("static", "dynamic")
 
 plot variation in GPP as a function of nutrient loads
 
+create data frame with consumption vectors
+
+```{r}
+# create data frame with consumption vectors from traits
+consump.vctr <- tibble(
+  model = rep(c("static", "dynamic"), each = 4), 
+  species = rep(c("average", "diatoms", "greens", "cyanos"), 2), 
+  "KN:KP" = rep(c(0.05/0.0165, 0.064/0.005, 0.036/0.028, 0.033/0.026), 2),
+  "minQN:minQP" = rep(c(0.09/0.0105, 0.155/0.02, 0.025/0.001, 0.01/0.001), 2), 
+  "VmaxN:VmaxP" = c(rep(NA, 4), c(2.45/0.426, 4/49/0.608, 0.416/0.243, 0.034/1.113))
+) %>%
+  gather("trait", "slope", -model, -species) %>%
+  mutate(trait = factor(trait, levels = c("KN:KP", "minQN:minQP", "VmaxN:VmaxP")), 
+         model = factor(model, levels = c("static", "dynamic")),
+         species = factor(species, levels = c("average", "diatoms", "greens", "cyanos")), 
+         intercept = 0)
+```
+
+
 ```{r}
 
 (plt.gpp <- gpp.combined %>%
@@ -408,15 +427,18 @@ plot variation in GPP as a function of nutrient loads
  # Redfield
   geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
               lty = "dashed", col = "white", lwd = 1, alpha = 0.5) +
+  geom_abline(data = consump.vctr, 
+              aes(slope = slope, intercept = intercept, lty = trait), lwd = 1) + 
   # Downing and McCauley
-  geom_abline(intercept = 0, slope  = c(14, 30), 
-              lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
+  # geom_abline(intercept = 0, slope  = c(14, 30), 
+  #             lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
   labs(x = expression("Inflow P ug L"^-1), 
        y = expression("Inflow N ug L"^-1),
-       fill = expression("log"[10] ~ "GPP mg C L"^-1 ~ "day"^-1)) + 
+       fill = expression("log"[10] ~ "GPP mg C L"^-1 ~ "day"^-1), 
+       lty = NULL) + 
   facet_grid(model~species) + 
   scale_fill_viridis_c(breaks = c(-2, -1, 0, 0.5))
-)
+) + theme(legend.position = "right")
 
 #save_plot("figures/GPP_all_species.png", plt.gpp, base_height = 5, base_width = 10)
 
@@ -446,13 +468,16 @@ plt.cn <- gpp.combined %>%
  # Redfield
   geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
               lty = "dashed", col = "white", lwd = 1, alpha = 0.5) +
-  # Downing and McCauley
-  geom_abline(intercept = 0, slope  = c(14, 30), 
-              lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
+  geom_abline(data = consump.vctr, 
+              aes(slope = slope, intercept = intercept, lty = trait), lwd = 1) + 
+  # # Downing and McCauley
+  # geom_abline(intercept = 0, slope  = c(14, 30), 
+  #             lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
   labs(#x = expression("Inflow P ug L"^-1), 
       x = NULL,
        y = expression("Inflow N ug L"^-1),
-       fill = "log cell C:N (molar)") + 
+       fill = "log cell C:N (molar)",
+      lty = NULL) + 
   facet_grid(.~species) + 
   scale_fill_viridis_c() + 
   theme(legend.position = "right")
@@ -464,14 +489,17 @@ plt.cp <- gpp.combined %>%
   geom_raster() + 
 # Redfield
   geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
-              lty = "dashed", col = "white", lwd = 1, alpha = 0.5) +
-  # Downing and McCauley
-  geom_abline(intercept = 0, slope  = c(14, 30), 
-              lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
+              lty = "dashed", col = "white", lwd = 1, alpha = 0.5)  +
+  geom_abline(data = consump.vctr, 
+              aes(slope = slope, intercept = intercept, lty = trait), lwd = 1) + 
+  # # Downing and McCauley
+  # geom_abline(intercept = 0, slope  = c(14, 30), 
+  #             lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
   labs(#x = expression("Inflow P ug L"^-1),
       x = NULL,
        y = expression("Inflow N ug L"^-1),
-       fill = "log cell C:P (molar)") + 
+       fill = "log cell C:P (molar)",
+      lty = NULL) + 
   facet_grid(.~species) + 
   scale_fill_viridis_c() + 
   theme(legend.position = "right")
@@ -484,12 +512,15 @@ plt.np <- gpp.combined %>%
  # Redfield
   geom_abline(intercept =  0, slope = c(16*14.007/30.974), 
               lty = "dashed", col = "white", lwd = 1, alpha = 0.5) +
-  # Downing and McCauley
-  geom_abline(intercept = 0, slope  = c(14, 30), 
-              lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
+  geom_abline(data = consump.vctr, 
+              aes(slope = slope, intercept = intercept, lty = trait), lwd = 1) + 
+  # # Downing and McCauley
+  # geom_abline(intercept = 0, slope  = c(14, 30), 
+  #             lty = "dashed", col = "black", lwd = 1, alpha = 0.5) + 
   labs(x = expression("Inflow P ug L"^-1),
        y = expression("Inflow N ug L"^-1),
-       fill = "Log cell N:P (molar)") + 
+       fill = "Log cell N:P (molar)", 
+       lty = NULL) + 
   facet_grid(.~species) + 
   scale_fill_viridis_c() + 
   theme(legend.position = "right")

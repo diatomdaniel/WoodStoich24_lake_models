@@ -1,0 +1,132 @@
+"0","# dynamic
+best.dynamic.run <- dynamic.algae
+best.dynamic.run[""miNQP1""] <- 0.01
+best.dynamic.run[""miNQN1""] <- 0.01
+best.dynamic.run[""umax1""] <- 0.8
+best.dynamic.run <-  lapply(1:nrow(in.grid), function(i) {
+    best.dynamic.run[""Pin""] = in.grid[i, ""TP_in""]
+    best.dynamic.run[""Nin""] = in.grid[i, ""TN_in""]
+    best.dynamic.run[""DOC""] = in.grid[i, ""DOC_mgL""]
+    best.dynamic.run[""z""] = in.grid[i, ""z""]
+    best.dynamic.run[""SA""] = in.grid[i, ""SA""]
+    y <- c(""A1"" = 100, ""P"" =in.grid[i, ""TP_in""], ""N"" = in.grid[i, ""TN_in""], ""QP1"" = 0.015, ""QN1"" = 0.1)
+    run <- ode(y, times, parms = best.dynamic.run, func = dynamic.stoich.zmix)
+    return(run[max(times),])
+})
+best.dynamic.run <- do.call(rbind, best.dynamic.run)
+best.dynamic.run <- as_data_frame(best.dynamic.run)
+# combine with initial input data for plotting
+best.dynamic.run$obs.GPP <- in.grid$GPP
+best.dynamic.run$Lake <- in.grid$Lake
+best.dynamic.run$est.GPP <- best.dynamic.run$GPP
+# calculate Rsq value
+best.dynamic.run %>%
+  mutate(
+    log10GPP = ifelse(is.infinite(log10(obs.GPP)), NA, log10(obs.GPP)),
+    log10estGPP = ifelse(is.infinite(log10(est.GPP)), NA, log10(est.GPP))
+  ) %>%
+  lm(log10estGPP ~ log10GPP, data = .) %>%
+  summary()
+"
+"1","
+Call:
+"
+"1",""
+"1","lm(formula = log10estGPP ~ log10GPP, data = .)"
+"1",""
+"1","
+
+"
+"1",""
+"1","Residuals:
+"
+"1","     Min "
+"1","      1Q "
+"1","  Median "
+"1","      3Q "
+"1","     Max "
+"1","
+"
+"1","-0.21586 "
+"1","-0.09422 "
+"1","-0.04339 "
+"1"," 0.05971 "
+"1"," 0.48581 "
+"1","
+"
+"1","
+Coefficients:
+"
+"1","           "
+"1"," Estimate"
+"1"," Std. Error"
+"1"," t value"
+"1"," Pr(>|t|)"
+"1","    "
+"1","
+(Intercept)"
+"1"," -1.66221"
+"1","    0.02099"
+"1"," -79.209"
+"1","  < 2e-16"
+"1"," ***"
+"1","
+log10GPP   "
+"1","  0.07994"
+"1","    0.01397"
+"1","   5.724"
+"1"," 1.65e-07"
+"1"," ***"
+"1","
+"
+"1","---
+Signif. codes:  "
+"1",""
+"1","0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1"
+"1","
+"
+"1","
+Residual standard error:"
+"1"," "
+"1","0.128"
+"1"," "
+"1","on"
+"1"," "
+"1","82"
+"1"," "
+"1","degrees of freedom"
+"1","
+"
+"1","  ("
+"1",""
+"1","7 observations deleted due to missingness"
+"1",""
+"1",")
+"
+"1","Multiple R-squared: "
+"1"," "
+"1","0.2855"
+"1",",	Adjusted R-squared: "
+"1"," "
+"1","0.2768"
+"1"," "
+"1","
+F-statistic:"
+"1"," "
+"1","32.77"
+"1"," "
+"1","on"
+"1"," "
+"1","1"
+"1"," "
+"1","and"
+"1"," "
+"1","82"
+"1"," "
+"1","DF,  p-value:"
+"1"," "
+"1","1.649e-07"
+"1","
+"
+"1","
+"
