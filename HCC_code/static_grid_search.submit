@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --nodes=10
+#SBATCH --nodes=1
 #SBATCH --mem=1900000
 #SBATCH --time=10:00:00
-#SBATCH --job-name=static_grid_search
-#SBATCH --error=static_grid_search.%J.err
-#SBATCH --output=static_grid_search.%J.out
+#SBATCH --job-name=static_grid_optimization
+#SBATCH --error=R_static_grid_optim.%J.err
+#SBATCH --output=R_static_grid_optim.%J.out
 
 module load R/4.3
 
-Rscript static_grid_search.R
+Rscript static_grid_optim.R

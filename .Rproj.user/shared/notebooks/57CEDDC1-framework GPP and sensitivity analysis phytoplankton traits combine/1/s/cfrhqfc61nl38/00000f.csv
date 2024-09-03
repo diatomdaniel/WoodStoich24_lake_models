@@ -1,4 +1,0 @@
-"0",""
-"0","save(list = ls(),file = ""GPP_and_sensitivity.Rdata"")"
-"0","load(""GPP_and_sensitivity.Rdata"")"
-"0",""

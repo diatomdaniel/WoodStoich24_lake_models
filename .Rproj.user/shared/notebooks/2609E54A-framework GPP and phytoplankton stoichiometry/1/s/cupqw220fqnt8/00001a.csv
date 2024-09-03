@@ -1,6 +1,0 @@
-"0",""
-"0","# save files for now, will re-run this each time"
-"0","save_plot(""figures/GPP_framework_exp1_GPP.png"", fig.exp1.gpp, "
-"0","          base_height = 4, base_width = 9, dpi = 400)"
-"0","save_plot(""figures/GPP_framework_exp1_CNP.png"", fig.exp1.cnp, "
-"0","          base_height = 4, base_width = 9, dpi = 400)"

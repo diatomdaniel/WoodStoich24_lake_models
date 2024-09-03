@@ -1,0 +1,16 @@
+"0","cnp.summary <- gpp.combined %>%
+  select(species, CN_molar, CP_molar, NP_molar) %>%
+  gather(""stoich"", ""ratio"", -species) %>%
+  drop_na() %>%
+  group_by(species, stoich) %>%
+  summarise(
+    min = min(ratio),
+    mean = mean(ratio),
+    median = median(ratio),
+    max = max(ratio),
+    sd = sd(ratio),
+    range = max(ratio) - min(ratio),
+  ) %>%
+  mutate_at(-c(1,2), round, 2)
+"
+"2","`summarise()` has grouped output by 'species'. You can override using the `.groups` argument."

@@ -1,6 +1,0 @@
-"0","theme_set(theme_solarized(light=FALSE) + 
-          theme(text = element_text(cololr = ""white"")))
-"
-"2","Error in element_text(cololr = ""white"") : 
-  unused argument (cololr = ""white"")
-"

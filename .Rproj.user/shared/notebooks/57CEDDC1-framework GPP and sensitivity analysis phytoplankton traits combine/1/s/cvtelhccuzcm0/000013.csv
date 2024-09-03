@@ -1,0 +1,6 @@
+"0","mean(gpp.combined[gpp.combined$model != ""static"", ]$GPP)
+"
+"1","[1]"
+"1"," 0.6579295"
+"1","
+"
