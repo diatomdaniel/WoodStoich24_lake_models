@@ -1,0 +1,9 @@
+
+
+long <- read_csv("C://USers/DanielGschwentner/Downloads/NEON data and scripts/NEON_long.csv")
+wide <- read_csv("C://USers/DanielGschwentner/Downloads/NEON data and scripts/NEON_wide.csv")
+
+
+x <- long %>% group_by(eventID, scientificName) %>% summarise(n = n()) 
+nrow(x[x$n > 1, ])
+length(unique(long$eventID))

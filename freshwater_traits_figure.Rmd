@@ -57,9 +57,9 @@ create plot
 
 (traits.fig <- fresh.traits %>%
   ggplot() + 
-  geom_violin(aes(taxon.new, log10(Trait.Value), fill = taxon.new), color = "black") + 
-  geom_point(aes(taxon.new, log10(Median.Trait.Value)), color = "black", size = 2) + 
-  geom_text(aes(taxon.new, -Inf, label = paste("n = ", n)), vjust = -1, col = "white") +
+  geom_violin(aes(taxon.new, (Trait.Value), fill = taxon.new), color = "black") + 
+  geom_point(aes(taxon.new, (Median.Trait.Value)), color = "black", size = 2) + 
+  #geom_text(aes(taxon.new, -Inf, label = paste("n = ", n)), vjust = -0, col = "white") +
   facet_wrap(Trait.new~., scales = "free_y", nrow = 2, ncol = 4) + 
   scale_fill_viridis_d() + 
   labs(x = NULL, y = expression("log"[10] ~ "Value"), fill = NULL) + 

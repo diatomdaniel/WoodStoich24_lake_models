@@ -36,7 +36,7 @@ dynamic.algae <- c(
   upN1 = NA
 )
 names(dynamic.algae) <- c("SA", "Pin", "Nin", "DOC", "z", "umax1", "lA", "v", 
-                         "KP1",  "QP1", "KN1",  "QN1")
+                         "KP1",  "minQP1", "KN1",  "minQN1", "upP1", "upN1")
 names(dynamic.algae)
 dynamic.algae <- unlist(dynamic.algae)
 
@@ -74,8 +74,10 @@ dynamic.grid.search.out <- lapply(1:nrow(dynamic.grid.search2), function(i){
   dynamic.algae["z"] = dynamic.grid.search2[i, "z"]
   dynamic.algae["KP1"] = dynamic.grid.search2[i, "KP1"]
   dynamic.algae["KN1"] = dynamic.grid.search2[i, "KN1"]
-  dynamic.algae["QP1"] = dynamic.grid.search2[i, "minQP1"]
-  dynamic.algae["QN1"] = dynamic.grid.search2[i, "minQN1"]
+  dynamic.algae["minQP1"] = dynamic.grid.search2[i, "minQP1"]
+  dynamic.algae["minQN1"] = dynamic.grid.search2[i, "minQN1"]
+  dynamic.algae["upP1"] = dynamic.grid.search2[i, "upP1"]
+  dynamic.algae["upN1"] = dynamic.grid.search2[i, "upN1"]
   dynamic.algae["umax1"] = dynamic.grid.search2[i, "umax1"]
   dynamic.algae["Pin"] = dynamic.grid.search2[i, "TP_in"]
   dynamic.algae["Nin"] = dynamic.grid.search2[i, "TN_in"]
@@ -94,19 +96,19 @@ print(paste0("Time elapsed = ", time.elapsed, " hours!"))
 
 # output data frame
 dynamic.grid.opt <- dynamic.grid.search.out2
-satic.grid.opt$est.GPP <- dynamic.grid.search.out$GPP
-satic.grid.opt$est.A <- dynamic.grid.search.out$A
-satic.grid.opt$est.P <- dynamic.grid.search.out$P
-satic.grid.opt$est.N <- dynamic.grid.search.out$N
+dynamic.grid.opt$est.GPP <- dynamic.grid.search.out$GPP
+dynamic.grid.opt$est.A <- dynamic.grid.search.out$A1
+dynamic.grid.opt$est.P <- dynamic.grid.search.out$P
+dynamic.grid.opt$est.N <- dynamic.grid.search.out$N
 
 # calculate error metrics to find the "best" model runs
-dynamic.grid.opt.metrics <- satic.grid.opt %>%
+dynamic.grid.opt.metrics <- dynamic.grid.opt %>%
   group_by(minQP1, minQN1, umax1, KN1, KP1) %>%
-  summarise(MAE = mean(abs(GPP - est_GPP)), # lower is better
-            RMSE =  sqrt((mean(GPP - est_GPP)^2)), # lower is better
-            NSE = 1 - sum((GPP - est_GPP)^2) / sum((GPP - mean(GPP))^2)  # closer to one is better; below 0 is not good
+  summarise(MAE = mean(abs(GPP - est.GPP)), # lower is better
+            RMSE =  sqrt((mean(GPP - est.GPP)^2)), # lower is better
+            NSE = 1 - sum((GPP - est.GPP)^2) / sum((GPP - mean(GPP))^2)  # closer to one is better; below 0 is not good
   )  %>%
   mutate(NSE = 1/(2 - NSE)) # normalize NSE to 0 to 1
 
 # save files
-save(list = list(dynamic.grid.opt, dynamic.grid.opt.metrics),  "corman_dynamic_grid_optim.Rdata")
+save(dynamic.grid.opt, dynamic.grid.opt.metrics,  "corman_dynamic_grid_optim.Rdata")

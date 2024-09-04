@@ -1,0 +1,124 @@
+
+# Install software --------------------------------------------------------
+
+# install neonUtilities - can skip if already installed
+install.packages("neonUtilities")
+# load neonUtilities & packages
+library(neonUtilities)
+library(dplyr)
+library(tidyr)
+
+
+# download data -----------------------------------------------------------
+
+
+## load phyto data  --------------------------------------------------------
+# dpID indicates the data product ID from https://data.neonscience.org/data-products/explore
+phyto <- loadByProduct(dpID="DP1.20166.001", 
+                           site=c("CRAM","BARC","SUGG","LIRO","PRLA","PRPO","TOOK"),
+                           startdate="2012-01", 
+                           enddate="2024-12")
+y
+
+## load water data --------------------------------------------------------- 
+#dpID indicates the data product ID from https://data.neonscience.org/data-products/explore
+water <- loadByProduct(dpID="DP1.20093.001", 
+                           site=c("CRAM","BARC","SUGG","LIRO","PRLA","PRPO","TOOK"),
+                           startdate="2012-01", 
+                           enddate="2024-12")
+y
+
+## load nutrient data ------------------------------------------------------
+# dpID indicates the data product ID from https://data.neonscience.org/data-products/explore
+nutrients <- loadByProduct(dpID="DP1.20163.001", 
+                 site=c("CRAM","BARC","SUGG","LIRO","PRLA","PRPO","TOOK"),
+                 startdate="2012-01", 
+                 enddate="2024-12")
+y
+
+
+# extract dataframes ------------------------------------------------------
+
+
+## extract phyto dataframes -----------------------------------------------
+phyto_field <- phyto$alg_taxonomyProcessed
+phyto_field <- phyto_field[grepl("buoy", phyto_field$namedLocation), ]
+
+# NEED TO merge alg_biomass data for calculations: pull labSampleVolume from phyto$alg_biomass
+phyto_biomass <- phyto$alg_biomass
+phyto_biomass <- phyto_biomass[grepl("buoy", phyto_biomass$namedLocation), ]
+phyto_field <- merge(phyto_field, phyto_biomass, by = "sampleID", all.x = T) # works to merge the field and biomass but gives some redundant colums df.x df.y . . . COULD CLEAN THIS UP BUT WORKS FOR OUR PURPOSES
+
+# calculate adundance of phytoplankton per count method following calculation methods on page 13 of NEON Algalcollection product guide: https://data.neonscience.org/documents/-/document_library_display/kV4WWrbEEM2s/view_file/3399096?_110_INSTANCE_kV4WWrbEEM2s_redirect=https%3A%2F%2Fdata.neonscience.org%2Fdocuments%2F-%2Fdocument_library_display%2FkV4WWrbEEM2s%2Fview%2F2237401%3F_110_INSTANCE_kV4WWrbEEM2s_keywords%3D%26_110_INSTANCE_kV4WWrbEEM2s_topLink%3Dhome%26_110_INSTANCE_kV4WWrbEEM2s_advancedSearch%3Dfalse%26_110_INSTANCE_kV4WWrbEEM2s_delta2%3D20%26_110_INSTANCE_kV4WWrbEEM2s_cur2%3D1%26p_r_p_564233524_resetCur%3Dfalse%26_110_INSTANCE_kV4WWrbEEM2s_andOperator%3Dtrue%26_110_INSTANCE_kV4WWrbEEM2s_delta1%3D20
+  # if algal parameters are reported as:
+    # algalParameter conversions to algalParameterUnit
+    # number of valves          == count
+    # number of natural units   == count
+    # cell density              == cellsPerBottle
+    # number of cells           == count
+    # biovolume density         == cubicMicrometerPerBottle
+
+# calculate algal abundance per ml of sample based on algal unit types
+phyto_field <- phyto_field %>%
+  mutate(algalCountPerMl = case_when(
+    algalParameter == "number of valves" ~ (algalParameterValue / (labSampleVolume + preservativeVolume)) / 2,      # DONE: valves: divided by 2 for diatom valve counts are 1/2 of a cell
+    algalParameter == "number of natural units" ~ (algalParameterValue / (labSampleVolume + preservativeVolume)),   # DONE: but... maybe remove, number of natural units: need to look into what this actually means, are filiments a single occurance count?
+    algalParameter == "cell density" ~ (algalParameterValue / (labSampleVolume + preservativeVolume)),              # DONE: cell density: total cells per bottle divided by the sample volume + preservitive
+    algalParameter == "number of cells" ~ (algalParameterValue / (labSampleVolume + preservativeVolume)),           # DONE number of cells: same as valves but not divided by two
+    algalParameter == "biovolume density" ~ (algalParameterValue / (labSampleVolume + preservativeVolume))          # NOT DONE, need to read the biovolum calc, NEON might have stopped doing this in 2018 resulting in many NA
+  ))
+
+# add eventID to phyto field data
+phyto_field$eventID <- paste(phyto_field$siteID.x, phyto_field$collectDate.x, sep=".")
+phyto_field$eventID <- gsub("-", "", phyto_field$eventID) # remove - to normalize
+phyto_field$eventID <- sub(" .*", "", phyto_field$eventID) # remove the time stamp from this collumn because time was added to collection date in some but not normalized across all NEON datafames
+
+## extract water dataframes -----------------------------------------------
+# exctracting needed pelagic zone plankton and seston samples
+Water_field <- water$swc_fieldSuperParent
+# eventID is the same as what I made here below, but seperated by a dot
+Water_field$date_siteID <- paste(Water_field$siteID, Water_field$collectDate, sep="_")
+Water_field$eventID
+# delete littoral ones
+Water_field <- Water_field[grepl("buoy", Water_field$namedLocation), ]
+Water_field_final <- Water_field  %>% select(date_siteID, eventID, #to identify the unique date+location
+                                                           siteID, collectDate,
+                                                           dissolvedOxygen, dissolvedOxygenSaturation, specificConductance, waterTemp,
+                                                           pH, #only measured twice
+                                                           maxDepth, lakeSampleDepth1,lakeSampleDepth2,lowerSegmentDepth,upperSegmentDepth,
+                                                           remarks)
+
+## extract nutrient dataframes --------------------------------------------
+# extract needed pelagic zone nutrient samples
+nutrients_field <- nutrients$alg_algaeExternalLabDataPerSample
+# delete littoral instances
+nutrients_field <- nutrients_field[grepl("buoy", nutrients_field$namedLocation), ]
+# add eventID to nutrient field data
+nutrients_field$eventID <- paste(nutrients_field$siteID, nutrients_field$collectDate, sep=".")
+nutrients_field$eventID <- gsub("-", "", nutrients_field$eventID) # remove - to normalize to water_field
+# pivot from analyte long to analyte wide format and keep eventID as normalization key
+nutrients_field_wide <- pivot_wider(nutrients_field, names_from = analyte, values_from = analyteConcentration)
+c <- nutrients_field_wide %>% select(eventID, carbon)
+c <- c[complete.cases(c), ]
+n <- nutrients_field_wide %>% select(eventID, nitrogen)
+n <- n[complete.cases(n), ]
+p <- nutrients_field_wide %>% select(eventID, phosphorus)
+p <- p[complete.cases(p), ]
+nutrients_field_2 <- merge(c,n)
+nutrients_field_final <- merge(nutrients_field_2, p)
+
+## merge phytos, nutrients, water ------------------------------------------
+
+# Merge nutrients to phytos
+df_combined <- phyto_field %>%
+  left_join(nutrients_field_final, by = "eventID", relationship = "many-to-many")
+
+df_combined2 <- df_combined %>%
+  left_join(Water_field_final, by = "eventID", relationship = "many-to-many")
+
+# reduce the df to only include the data we need
+NEON_wide <- df_combined2 %>%
+  select(namedLocation.x, scientificName, division, class, order, family, genus, specificEpithet, eventID, algalCountPerMl, carbon, nitrogen, phosphorus)
+
+# Write to file 
+write.csv(NEON_wide, "D:\\Research\\Projects\\Woodstoich_5\\NEON_long.csv", row.names=FALSE)

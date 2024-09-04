@@ -88,20 +88,21 @@ time.elapsed <- (end - start)
 print(paste0("Time elapsed = ", time.elapsed, " hours!"))
 
 # output data frame
-static.grid.opt <- static.grid.search.out2
-satic.grid.opt$est.GPP <- static.grid.search.out$GPP
-satic.grid.opt$est.A <- static.grid.search.out$A
-satic.grid.opt$est.P <- static.grid.search.out$P
-satic.grid.opt$est.N <- static.grid.search.out$N
+static.grid.opt <- static.grid.search2
+static.grid.opt$est.GPP <- static.grid.search.out$GPP
+static.grid.opt$est.A <- static.grid.search.out$A1
+static.grid.opt$est.P <- static.grid.search.out$P
+static.grid.opt$est.N <- static.grid.search.out$N
 
 # calculate error metrics to find the "best" model runs
-static.grid.opt.metrics <- satic.grid.opt %>%
+static.grid.opt.metrics <- static.grid.opt %>%
   group_by(minQP1, minQN1, umax1, KN1, KP1) %>%
-  summarise(MAE = mean(abs(GPP - est_GPP)), # lower is better
-            RMSE =  sqrt((mean(GPP - est_GPP)^2)), # lower is better
-            NSE = 1 - sum((GPP - est_GPP)^2) / sum((GPP - mean(GPP))^2)  # closer to one is better; below 0 is not good
+  summarise(MAE = mean(abs(GPP - est.GPP)), # lower is better
+            RMSE =  sqrt((mean(GPP - est.GPP)^2)), # lower is better
+            NSE = 1 - sum((GPP - est.GPP)^2) / sum((GPP - mean(GPP))^2)  # closer to one is better; below 0 is not good
   )  %>%
   mutate(NSE = 1/(2 - NSE)) # normalize NSE to 0 to 1
 
 # save files
-save(list = list(static.grid.opt, static.grid.opt.metrics),  "corman_static_grid_optim.Rdata")
+save(static.grid.opt, static.grid.opt.metrics,  file = "corman_static_grid_optim.Rdata")
+
