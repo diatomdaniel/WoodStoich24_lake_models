@@ -171,8 +171,10 @@ rsq$rsq <- round(unlist(r), 2)
 load("corman_static_grid_optim.Rdata")
 
 # select top 10 runs from static grid optim
+# select top 2.5 percentile of runs based on Rsq
 static.grid.optim <- arrange(static.grid.opt.metrics,RMSE )
-static.top10 <- static.grid.optim[1:10,]
+#static.top10 <- static.grid.optim[1:10,]
+static.top10 <- static.grid.optim[static.grid.optim$RMSE < quantile(static.grid.optim$RMSE, 0.025), ]
 
 # re-run ten top scenarios to generate ensemble 
 static.ensemble.in <- static.top10 %>%
@@ -227,7 +229,8 @@ static.ensemble.aggregate <- static.ensemble %>%
   group_by(Lake, Year, Month) %>%
   mutate(ave.est.GPP = mean(est.GPP), 
          sd.est.GPP = sd(est.GPP)) %>%
-  ungroup() 
+  ungroup() %>%
+  mutate(model = "static", species = "optimal")
 
 
 ### dynamic mdoel
@@ -237,7 +240,11 @@ load("corman_dynamic_grid_optim.Rdata")
 
 # select top 10 runs from dynamic grid optim
 dynamic.grid.optim <- arrange(dynamic.grid.opt.metrics,RMSE )
-dynamic.top10 <- dynamic.grid.optim[1:10,]
+# select top 2.5 percentile of runs based on Rsq
+dynamic.grid.optim <- arrange(dynamic.grid.optim,RMSE )
+#dynamic.top10 <- dynamic.grid.optim[1:10,]
+dynamic.top10 <- dynamic.grid.optim[dynamic.grid.optim$RMSE < quantile(dynamic.grid.optim$RMSE, 0.025), ]
+
 
 # re-run ten top scenarios to generate ensemble 
 dynamic.ensemble.in <- dynamic.top10 %>%
@@ -303,17 +310,76 @@ dynamic.ensemble.aggregate <- dynamic.ensemble %>%
 ensembles.all <- bind_rows(static.ensemble.aggregate, dynamic.ensemble.aggregate)
 
 ################################################################################
-# ploting
+# plotting
 
+# combine data set with baseline predictions for pretty plotting
+all.predictions <- bind_rows(
+  base.predictions.corman,
+  ensembles.all %>%
+    # only selects needed to match, discarding a lot of information here
+    select(Lake, Month, Year, TP_in, TN_in, HRT, 
+           SA, DOC_mgL, z, species, model, 
+           GPP, est_GPP = ave.est.GPP, sd.est.GPP)) %>%
+  mutate(model = factor(model, levels = c("static", "dynamic")), 
+         species = factor(species, levels = c("average", "diatoms", "greens", "cyanos", "optimal")))
+
+### Plot base predictions
+(predicted.plt <- all.predictions %>%
+    ggplot() + 
+    geom_smooth(aes(GPP, est_GPP), method = "lm", alpha = 0.3) + 
+    geom_point(aes(GPP, est_GPP, pch = Lake), size = 2) + 
+    ggh4x::facet_grid2(model ~ species,  scales = "free", independent = "y") + 
+    scale_x_log10() + scale_y_log10() + 
+    labs(x = "Measured GPP mg C L^-1 day^-1", 
+         y = "Modelled GPP mg C L^-1 day^-1",
+         shape = NULL) + 
+    scale_shape_manual(
+      values = c(
+        "Acton" = 0,
+        "EastLong" = 1,
+        "Feeagh" = 2,
+        "Harp" = 3,
+        "Langtjern" = 4,
+        "Lillinoah" = 5,
+        "Lillsjoliden" = 6,
+        "Mangstrettjarn" = 7,
+        "Mendota" = 8,
+        "Morris" = 9,
+        "Struptjarn" = 10,
+        "Trout" = 11,
+        "Vortsjarv" = 12
+      )
+    ) + 
+    theme(legend.position = "right")) 
+
+# generate rsq values
+# calculate rsq values
+rsq <- expand.grid(model = c("static", "dynamic"), 
+                   species = c("average", "diatoms", "greens", "cyanos", "optimal"))
+rsq$rsq <- NA
+r <- lapply(1:nrow(rsq), function(i) {
+  subset <- all.predictions %>% filter(species == rsq[i, "species"]  & model == rsq[i, "model"])
+  subset <- subset %>%
+    mutate(log10GPP = log10(GPP), 
+           log10estGPP = log10(est_GPP)) %>%
+    mutate(log10GPP = ifelse(is.infinite(log10GPP), NA, log10GPP))
+  r <- summary(lm(log10estGPP ~ log10GPP, data = subset))$adj.r.squared
+  return(r)
+})
+rsq$rsq <- round(unlist(r), 2)
+
+
+# plot range of trait valyes
 # lack of range in miNQP and minQN means best runs always have min possible cell quotas
 # further evidence that minQN:miNQP drives GPP estimates
+best.traits <- bind_rows(
+  static.top10 %>% mutate(model = "static"),
+  dynamic.top10 %>% mutate(model = "dynamic")
+) %>% mutate(model = factor(model, levels = c("static", "dynamic")))
 
-
-static.ensemble %>% select(KP1, KN1, minQP1, minQN1, umax1, est.GPP) %>%
-  gather("trait", "value", -est.GPP) %>%
-  group_by(trait) %>%
-  mutate(std.value = (value-min(value))/(max(value)-min(value))) %>%
-  ungroup() %>%
-  ggplot(aes(trait, std.value)) + 
-  geom_point() + 
-  facet_wrap(trait~., scales = "free")
+best.traits %>% 
+  gather("Trait", "Trait.value", 
+         -model, -RMSE, -MAE, -NSE) %>%
+  ggplot() + 
+  geom_point(aes(model, Trait.value)) + 
+  facet_wrap(.~Trait, scales = "free_y")

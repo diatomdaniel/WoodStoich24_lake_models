@@ -146,10 +146,12 @@ species.legend = c("average", "diatoms","greens", "cyanos")
                                  fill = species, pch = Pin, group = Pin),
              size = 2) + 
   scale_x_log10() + scale_y_log10() + 
-  ggh4x::facet_grid2(.~model) + 
+  #ggh4x::facet_grid2(.~model) + 
+  ggh4x::facet_grid2(Pin~model) + 
   scale_shape_manual(values = c(21, 22, 24)) + 
   scale_color_viridis_d() + 
   scale_fill_viridis_d() + 
+  guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
   labs(x = "N:P inflow mass", y = "GPP mg C L^-1 day^-1", col = "P in ug L^-1"))
 
 
@@ -175,10 +177,12 @@ species.legend = c("average", "diatoms","greens", "cyanos")
               lwd = 0.75) + 
     geom_point(data = seston, aes(NP_inflow, value, fill = species, pch = Pin, group = Pin), size = 2) + 
     scale_x_log10() + scale_y_log10() + 
-    ggh4x::facet_grid2(.~seston, scales = "free", independent = "y") + 
+    #ggh4x::facet_grid2(.~seston, scales = "free", independent = "y") + 
+    ggh4x::facet_grid2(Pin~seston, scales = "free", independent = "y") + 
     scale_shape_manual(values = c(21, 22, 23)) + 
     scale_color_viridis_d() + 
     scale_fill_viridis_d() + 
+    guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
     labs(x = "N:P inflow mass", y = "C:N:P", col = "P in ug L^-1"))
 
 
@@ -207,10 +211,12 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
     geom_point(data = seston, aes(value, GPP, fill = species, pch = Pin, alpha = NP_inflow, group = interaction(species, Pin)), 
                size = 2) + 
     scale_x_log10() + scale_y_log10() + 
-    ggh4x::facet_grid2(.~seston) + 
+    #ggh4x::facet_grid2(.~seston) + 
+    ggh4x::facet_grid2(Pin~seston) + 
     scale_shape_manual(values = c(21, 22, 24)) + 
     scale_color_viridis_d() + 
     scale_fill_viridis_d() + 
+    guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
     scale_alpha(range=c(0.5,1), na.value = 0) + 
     labs(x = "C:N:P molar", y = "GPP mg C L^-1 day_1", col = "P in ug L^-1", size = "Inflow log(N:P) mass"))
 
@@ -218,11 +224,13 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
 
 # arrange figures
 # seston plots go together
-seston.figs <- ggarrange(plotlist = list(cnp.plt, gpp.cnp.plt), align = "hv", nrow = 2, labels = c("b", "c"))
+seston.figs <- ggarrange(plotlist = list(cnp.plt, gpp.cnp.plt), align = "hv", ncol = 2, labels = c("b", "c"))
 seston.figs
 
 # add to gpp plot
-gpp.plt2 <- ggarrange(plotlist = list(gpp.plt, ggplot() + geom_blank()), nrow = 2, labels = c("a", ""))
-framework.fig <- ggarrange(plotlist = list(gpp.plt2, seston.figs), ncol = 2, align = "hv")
+#gpp.plt2 <- ggarrange(plotlist = list(gpp.plt, ggplot() + geom_blank()), nrow = 2, labels = c("a", ""))
+
+framework.fig <- ggarrange(plotlist = list(gpp.plt, seston.figs),ncol = 2, labels = c("a", ""), 
+                           align = "hv", widths = c(1/3, 2/3))
 framework.fig
 # manually add legend in powerpoint
