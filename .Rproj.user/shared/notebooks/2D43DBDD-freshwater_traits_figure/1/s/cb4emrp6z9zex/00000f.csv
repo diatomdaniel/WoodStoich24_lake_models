@@ -1,53 +1,12 @@
-"0","# load packages"
-"0","pck <- c(""tidyverse"", ""cowplot"", ""ggthemes"", ""wesandersen"", ""ggpubr"")"
-"0","lapply(pck, require, character.only = T)"
-"1","[[1]]
+"0","# set plotting theme
+theme_set(theme_minimal(light=F) + 
+          theme(text = element_text(color = ""white""), 
+                axis.text = element_text(color = ""white""),
+                axis.title = element_text(color = ""white""),
+                legend.text = element_text(color = ""white""),
+                legend.title = element_text(color = ""white""),
+                legend.justification = ""center"", 
+                legend.position = ""bottom""))
 "
-"1","[1]"
-"1"," TRUE"
-"1","
+"2","Error in theme_minimal(light = F) : unused argument (light = F)
 "
-"1","
-"
-"1","[[2]]
-"
-"1","[1]"
-"1"," TRUE"
-"1","
-"
-"1","
-"
-"1","[[3]]
-"
-"1","[1]"
-"1"," TRUE"
-"1","
-"
-"1","
-"
-"1","[[4]]
-"
-"1","[1]"
-"1"," FALSE"
-"1","
-"
-"1","
-"
-"1","[[5]]
-"
-"1","[1]"
-"1"," TRUE"
-"1","
-"
-"1","
-"
-"0","# set plotting theme"
-"0","theme_set(theme_solarized(light=F) + "
-"0","          theme(text = element_text(color = ""white""), "
-"0","                axis.text = element_text(color = ""white""),"
-"0","                axis.title = element_text(color = ""white""),"
-"0","                legend.text = element_text(color = ""white""),"
-"0","                legend.title = element_text(color = ""white""),"
-"0","                legend.justification = ""center"", "
-"0","                legend.position = ""bottom""))"
-"0",""

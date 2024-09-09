@@ -1,0 +1,7 @@
+"0",""
+"0","selected.traits <- all.traits %>%"
+"0","  filter(taxon %in% c(""green"", ""diatom"", ""cyano"")) %>%"
+"0","  select(species, taxon, system, c_per_cell, k_nit, vmax_nit, qmin_nit, qmax_nit, "
+"0","         k_p, vmax_p, qmin_p, qmax_p, mu_nit, mu_p)"
+"0",""
+"0",""

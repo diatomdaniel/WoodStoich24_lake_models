@@ -23,6 +23,7 @@ static.stoich <- function(times, y, params) {
   zmix = params["zmix"]
   Pin = params["Pin"]
   Nin = params["Nin"]
+  HRT = params["HRT"]
   
   # algae physiology parameters
   umax1 = params["umax1"]
@@ -36,7 +37,7 @@ static.stoich <- function(times, y, params) {
   QN1 = params["QN1"]
   
   # In/output
-  Qin=SA*1e6*zmix/365	# m^3 day^-1
+  Qin=SA*1e6*zmix/HRT	# m^3 day^-1
 
   # Volume = entire lake is mixed; zmix = zmax
   V = SA * 1e6 * zmix

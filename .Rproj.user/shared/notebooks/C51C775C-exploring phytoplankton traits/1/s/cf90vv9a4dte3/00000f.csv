@@ -1,0 +1,7 @@
+"0",""
+"0","model.values <- traits.mass %>% "
+"0","  select(taxon, Trait, Median) %>%"
+"0","  pivot_wider(id_cols = Trait, names_from = taxon, values_from = Median) %>%"
+"0","  mutate_at(2:4, round, 3)"
+"0","model.values$average <- rowMeans(model.values[,2:3])"
+"0","model.values %>%  knitr::kable()"

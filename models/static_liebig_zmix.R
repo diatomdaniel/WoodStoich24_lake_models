@@ -24,6 +24,7 @@ static.stoich.zmix <- function(times, y, params) {
   DOC = params["DOC"]
   Pin = params["Pin"]
   Nin = params["Nin"]
+  HRT = params["HRT"]
   
   # algae physiology parameters
   umax1 = params["umax1"]
@@ -42,7 +43,7 @@ static.stoich.zmix <- function(times, y, params) {
   # if zmix exceeds depth, set zmix to z.
   zmix <- ifelse(zmix > z, z, zmix)
   # In/output
-  Qin=SA*1e6*zmix/365	# m^3 day^-1
+  Qin=SA*1e6*zmix/HRT	# m^3 day^-1
   
   # Volume = entire lake is mixed; zmix = zmax
   V = SA * 1e6 * zmix

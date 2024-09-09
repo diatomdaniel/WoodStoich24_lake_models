@@ -18,12 +18,12 @@ Set up environment, load packages, plotting aesthetics, etc.
 pck <- c("deSolve", "tidyverse", "cowplot", "ggthemes", "wesandersen", "ggpubr")
 lapply(pck, require, character.only = T)
 # set plotting theme
-theme_set(theme_solarized(light=F) + 
-          theme(text = element_text(color = "white"), 
-                axis.text = element_text(color = "white"),
-                axis.title = element_text(color = "white"),
-                legend.text = element_text(color = "white"),
-                legend.title = element_text(color = "white"),
+theme_set(theme_few() + 
+          theme(text = element_text(color = "black"), 
+                axis.text = element_text(color = "black"),
+                axis.title = element_text(color = "black"),
+                legend.text = element_text(color = "black"),
+                legend.title = element_text(color = "black"),
                 legend.justification = "center", 
                 legend.position = "bottom"))
 
@@ -610,8 +610,8 @@ np.runs.df$species <- factor(np.runs.df$species, levels = c("average", "diatoms"
 # subset data set and calculate C:N:P
 seston.cnp <- np.runs.df[np.runs.df$model == "dynamic",] %>%
   mutate("C:N" = 1/QN1,"C:P" = 1/QP1, "N:P" = QN1/QP1, NP_inflow = Nin/Pin) %>%
-  select(`C:N`, `C:P`, `N:P`,Pin, NP_inflow, species) %>%
-  gather("seston", "value", -Pin, -NP_inflow, -species) %>%
+  select(`C:N`, `C:P`, `N:P`,Pin, NP_inflow, species, GPP) %>%
+  gather("seston", "value", -Pin, -NP_inflow, -species, -GPP) %>%
   mutate(seston = factor(seston, levels = c("C:N", "C:P", "N:P")))
 
 
@@ -659,9 +659,218 @@ plt.seston.cnp <- ggplot() +
   guides(fill = "none") 
 plt.seston.cnp
 
+
 #save_plot("figures/CNP_across_NP.png", plt.seston.cnp, base_width = 10, base_height = 5)
 
 ```
+
+```{r}
+# seston C:N:P and GPP summary figure for Carly
+
+# plot GPP as a function of NP inflow
+(gpp.fig <- np.runs.df %>%
+  ggplot(aes(log(NP_inflow), GPP, col = Pin, group = Pin)) + 
+  geom_point(size = 2) + geom_line() + 
+  geom_vline(data = consump.vctr[consump.vctr$trait == "minQN:minQP",], 
+             aes(xintercept = log(slope)), lty = "dashed") + 
+  scale_color_viridis_c() + 
+  labs(x = "log(N:P inflow (mass))", 
+       y = expression("GPP mg C L"^-1 ~ "day"^-1), 
+       col = expression("P in ug L"^-1)) + 
+  ggh4x::facet_grid2(model ~ species, scales = "free_x", independent = "x") + 
+  theme(legend.position = "right"))
+
+# plot GPP as a function of NP inflow
+(cnp.fig <- np.runs.df %>%
+  filter(model == "dynamic") %>%
+  mutate("C:N" = ((1/QN1) * 14.007)/(1*12.011),
+         "C:P" = ((1/QP1) * 30.974)/(1*12.011),
+         "N:P" = ((QN1/14.007)/(QP1/30.974)), 
+         NP_inflow = Nin/Pin) %>%
+  select(`C:N`, `C:P`, `N:P`,Pin, NP_inflow, species, GPP) %>%
+  gather("seston", "value", -Pin, -NP_inflow, -species, -GPP) %>%
+  mutate(seston = factor(seston, levels = c("C:N", "C:P", "N:P"))) %>%
+  ggplot(aes(log(NP_inflow), log(value), col = Pin, group = Pin)) + 
+  geom_point(size = 2) + geom_line() + 
+  geom_vline(data = consump.vctr[consump.vctr$trait == "minQN:minQP",], 
+             aes(xintercept = log(slope)), lty = "dashed") +
+  scale_color_viridis_c() + 
+  labs(x = "log(N:P inflow (mass))", 
+       y = "log(C:N:P (molar))", 
+       col = expression("P in ug L"^-1)) + 
+  ggh4x::facet_grid2(seston ~ species, scales = "free_x", independent = "x") + 
+  theme(legend.position = "right"))
+
+(cnp.gpp.fig <- np.runs.df %>%
+  filter(model == "dynamic") %>%
+  mutate("C:N" = ((1/QN1) * 14.007)/(1*12.011),
+         "C:P" = ((1/QP1) * 30.974)/(1*12.011),
+         "N:P" = ((QN1/14.007)/(QP1/30.974)), 
+         NP_inflow = Nin/Pin) %>%
+  select(`C:N`, `C:P`, `N:P`,Pin, NP_inflow, species, GPP) %>%
+  gather("seston", "value", -Pin, -NP_inflow, -species, -GPP) %>%
+  mutate(seston = factor(seston, levels = c("C:N", "C:P", "N:P"))) %>%
+  ggplot(aes(log(value), GPP, col = Pin, alpha = log(NP_inflow), group = Pin)) +
+  geom_point(size = 2) + geom_line() + 
+  scale_color_viridis_c() + 
+  labs(x =  "log(C:N:P (molar))", 
+       y = expression("GPP mg C L"^-1 ~ "day"^-1),
+       alpha = "log(N:P inflow (mass))",
+       col  = expression("P in ug L"^-1)) + 
+  ggh4x::facet_grid2(seston ~ species, scales = "free_x", independent = "x") + 
+  theme(legend.position = "right")
+)
+
+## Combine
+stoich.ms.fig <- ggarrange(plotlist =  list(gpp.fig, cnp.fig, cnp.gpp.fig),
+                           labels = c("a", "b", "c"), ncol = 1, nrow = 3, align = "hv")
+stoich.ms.fig
+
+save_plot("figures/stoich_master_gpp.png", stoich.ms.fig, base_height = 10, base_width = 8)
+
+```
+
+```{r}
+# subset and transform data
+np.runs.subset <- np.runs.df %>% filter(Pin %in% c(20, 220, 470)) %>% mutate(Pin = factor(Pin))
+# long and some formatting
+np.runs.subset.long <- np.runs.subset %>%
+  filter(model == "dynamic") %>%
+  mutate("C:N" = ((1/QN1) * 14.007)/(1*12.011),
+         "C:P" = ((1/QP1) * 30.974)/(1*12.011),
+         "N:P" = ((QN1/14.007)/(QP1/30.974))) %>%
+  select(`C:N`, `C:P`, `N:P`,Pin, NP_inflow, species, GPP) %>%
+  gather("seston", "value", -Pin, -NP_inflow, -species, -GPP) %>%
+  mutate(seston = factor(seston, levels = c("C:N", "C:P", "N:P")))
+# legend values
+species.legend = c("21" = "average", 
+                   "22" = "diatoms", 
+                   "23" = "greens",
+                   "24" = "cyanos")
+
+# plot GPP as a function of NP inflow
+(gpp.fig2 <- ggplot() + 
+    # manually add each species
+    # average
+  geom_line(data = np.runs.subset[np.runs.subset$species == "average", ], 
+             aes(log(NP_inflow), GPP, col = Pin, group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset[np.runs.subset$species == "average", ], 
+             aes(log(NP_inflow), GPP, fill = Pin, group = Pin),  pch = 21, size = 2) + 
+    # diatoms
+  geom_line(data = np.runs.subset[np.runs.subset$species == "diatoms", ], 
+             aes(log(NP_inflow), GPP, col = Pin, group = Pin), lwd= 1) + 
+  geom_point(data = np.runs.subset[np.runs.subset$species == "diatoms", ], 
+             aes(log(NP_inflow), GPP, fill = Pin, group = Pin),  pch = 22, size = 2) + 
+  # greens
+  geom_line(data = np.runs.subset[np.runs.subset$species == "greens", ], 
+             aes(log(NP_inflow), GPP, col = Pin, group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset[np.runs.subset$species == "greens", ], 
+             aes(log(NP_inflow), GPP, fill = Pin, group = Pin),  pch = 23, size = 2) + 
+  # cyanos
+  geom_line(data = np.runs.subset[np.runs.subset$species == "cyanos", ], 
+             aes(log(NP_inflow), GPP, col = Pin, group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset[np.runs.subset$species == "cyanos", ], 
+             aes(log(NP_inflow), GPP, fill = Pin, group = Pin),  pch = 21, size = 2) + 
+  # consumption vctrs
+  geom_vline(data = consump.vctr[consump.vctr$trait == "minQN:minQP",], 
+             aes(xintercept = log(slope)), lty = "dashed") + 
+  ggh4x::facet_grid2(. ~ model, scales = "free_x", independent = "x") + 
+  scale_fill_viridis_d() + 
+  scale_color_viridis_d() + 
+  scale_shape_manual(values = species.legend) + 
+  labs(x = "log(N:P inflow (mass))", 
+       y = expression("GPP mg C L"^-1 ~ "day"^-1), 
+       col = expression("P in ug L"^-1)) + 
+  theme(legend.position = "right") +
+  guides(fill = "none")
+  
+  ) 
+
+# plot GPP as a function of NP inflow
+(cnp.fig2 <- ggplot() + 
+    # manually add each species
+    # average
+  geom_line(data = np.runs.subset.long[np.runs.subset.long$species == "average", ], 
+             aes(log(NP_inflow), log(value), col = Pin, group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset.long[np.runs.subset.long$species == "average", ], 
+             aes(log(NP_inflow), log(value), fill = Pin, group = Pin),  pch = 21, size = 2) + 
+    # diatoms
+  geom_line(data = np.runs.subset.long[np.runs.subset.long$species == "diatoms", ], 
+             aes(log(NP_inflow), log(value), col = Pin, group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset.long[np.runs.subset.long$species == "diatoms", ], 
+             aes(log(NP_inflow), log(value), fill = Pin, group = Pin),  pch = 22, size = 2) +
+      # greens
+  geom_line(data = np.runs.subset.long[np.runs.subset.long$species == "greens", ], 
+             aes(log(NP_inflow), log(value), col = Pin, group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset.long[np.runs.subset.long$species == "greens", ], 
+             aes(log(NP_inflow), log(value), fill = Pin, group = Pin),  pch = 23, size = 2) + 
+    # cyanos
+  geom_line(data = np.runs.subset.long[np.runs.subset.long$species == "cyanos", ], 
+             aes(log(NP_inflow), log(value), col = Pin, group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset.long[np.runs.subset.long$species == "cyanos", ], 
+             aes(log(NP_inflow), log(value), fill = Pin, group = Pin),  pch = 21, size = 2) + 
+  # consumption vector
+  geom_vline(data = consump.vctr[consump.vctr$trait == "minQN:minQP",], 
+             aes(xintercept = log(slope)), lty = "dashed") +
+  scale_fill_viridis_d() + 
+  scale_color_viridis_d() + 
+  scale_shape_manual(values = species.legend) + 
+  labs(x = "log(N:P inflow (mass))", 
+       y = "log(C:N:P (molar))", 
+       col = expression("P in ug L"^-1)) + 
+  theme(legend.position = "right") +
+  guides(fill = "none") + 
+  ggh4x::facet_grid2(. ~  seston, scales = "free_x", independent = "x") 
+)
+  
+# GPP as function of cell stoichiometry and coloring for Pinflow and N:
+(cnp.gpp.fig2 <- ggplot() + 
+      # manually add each species
+    # average
+  geom_line(data = np.runs.subset.long[np.runs.subset.long$species == "average", ], 
+             aes(log(value), GPP, col = Pin, alpha = log(NP_inflow), group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset.long[np.runs.subset.long$species == "average", ], 
+             aes(log(value), GPP, fill = Pin, alpha = log(NP_inflow), group = Pin),  pch = 21, size = 2) + 
+    # diatoms
+  geom_line(data = np.runs.subset.long[np.runs.subset.long$species == "diatoms", ], 
+             aes(log(value), GPP, col = Pin, alpha = log(NP_inflow), group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset.long[np.runs.subset.long$species == "diatoms", ], 
+             aes(log(value), GPP, fill = Pin, alpha = log(NP_inflow), group = Pin),  pch = 22, size = 2) + 
+      # greens
+  geom_line(data = np.runs.subset.long[np.runs.subset.long$species == "greens", ], 
+             aes(log(value), GPP, col = Pin, alpha = log(NP_inflow), group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset.long[np.runs.subset.long$species == "greens", ], 
+             aes(log(value), GPP, fill = Pin, alpha = log(NP_inflow), group = Pin),  pch = 23, size = 2) + 
+    # cyanos
+  geom_line(data = np.runs.subset.long[np.runs.subset.long$species == "greens", ], 
+             aes(log(value), GPP, col = Pin, alpha = log(NP_inflow), group = Pin), lwd = 1) + 
+  geom_point(data = np.runs.subset.long[np.runs.subset.long$species == "average", ], 
+             aes(log(value), GPP, fill = Pin, alpha = log(NP_inflow), group = Pin),  pch = 24, size = 2) +  
+  # consumption vector
+  geom_vline(data = consump.vctr[consump.vctr$trait == "minQN:minQP",], 
+             aes(xintercept = log(slope)), lty = "dashed") +
+  scale_fill_viridis_d() + 
+  scale_color_viridis_d() + 
+  scale_shape_manual(values = species.legend) + 
+  labs(x = "log(Cell C:N:P molar)", 
+       y =   expression("GPP mg C L"^-1 ~ "day"^-1), 
+       col = expression("P in ug L"^-1), 
+       alpha = "log(N:P in mass)") + 
+  theme(legend.position = "right") +
+  guides(fill = "none") + 
+  ggh4x::facet_grid2(. ~  seston, scales = "free_x", independent = "x")
+)
+
+## Combine
+stoich.ms.fig2 <- ggarrange(plotlist =  list(gpp.fig2, cnp.fig2, cnp.gpp.fig2),
+                           labels = c("a", "b", "c"), ncol = 1, nrow = 3, align = "hv")
+stoich.ms.fig2
+
+save_plot("figures/stoich_master_gpp2.png", stoich.ms.fig2, base_height = 10, base_width = 8)
+
+
+```
+
 
 ## Sensitivity analysis
 

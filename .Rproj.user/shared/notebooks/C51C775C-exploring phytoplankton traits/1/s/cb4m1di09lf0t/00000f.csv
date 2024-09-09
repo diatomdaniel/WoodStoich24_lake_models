@@ -1,0 +1,3 @@
+"0",""
+"0","all.traits <- read_csv(""data4input/edwards phytoplankton traits compiled.csv"")"
+"0","light.umax <- read_csv(""data4input/light and growth Schwaderer et al 2011.csv"")"
