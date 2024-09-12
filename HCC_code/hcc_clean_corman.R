@@ -7,9 +7,9 @@ library(tidyverse)
 
 # load data sets
 # GPP
-corman.gpp <- read_csv("data4input/Corman2023 metabolism result.csv")
+corman.gpp <- read_csv("Corman2023 metabolism result.csv")
 # stream nutrients 
-corman.stream.nutrients  <- read_csv("data4input/Corman2023 stream nutrients.csv")
+corman.stream.nutrients  <- read_csv("Corman2023 stream nutrients.csv")
 # volume and DOC created from S1 T1 and T1 in paper
 # no DOC for Lillinonah! used median DOC of the data set = 11.8
 corman.vol <- tibble(
@@ -18,30 +18,9 @@ corman.vol <- tibble(
   z = c(3.9, 5.03, 4.04, 14.50, 13.30, 2, 13, 3.8, 5.3, 12.80, 2.42, 4.20, 4, 3.80, 14.60, 2.80),
   SA = c(2.5, 0.26, 0.03, 3.92, 0.71, 0.23, 6.26, 0.01, 0.02, 39.60, 0.06, 0.01, 0.05, 0.03, 15.70, 270), 
   DOC_mgL = c(4.3, 4.6, 10.6, 5.6, 5.2, 11.8, 11.8, 15.5, 11.9, 4.7, 17.3, 8.2, 23.2, 19.9, 2.8, 11.9),
-  HRT.lake = c(0.2, 3.5, 0.8, 0.5, 2.7, 0.2, 0.1, 0.8, 1, 4.5, 0.5, 1.5, 0.1, 1.7, 5.3, 1)) %>%
+  HRT = c(0.2, 3.5, 0.8, 0.5, 2.7, 0.2, 0.1, 0.8, 1, 4.5, 0.5, 1.5, 0.1, 1.7, 5.3, 1)) %>%
   mutate(volume_m3 = SA * 1e6 * z,
-         HRT.lake = HRT.lake * 365 )
-
-# scaling of WRT
-corman.vol <- corman.vol %>%
-  mutate(zmix = 10^(0.515 * log10(DOC_mgL) + 0.115 * log10(2 * sqrt(SA/pi + 0.991))),
-         zmix = ifelse(zmix > z, z, zmix),
-         v.mixed.layer_m3 = SA * 1e6 * zmix,
-         ratio.mixed.hypo = v.mixed.layer_m3/volume_m3,
-         HRT = HRT.lake*ratio.mixed.hypo # scale WRT by ratio of mixed layer to complete volue
-         )
-
-# quick comparison of old to new WRT
-(old.new.wrt <- corman.vol %>%
-  ggplot(aes(HRT.lake, HRT, fill = ratio.mixed.hypo), size = 2, pch = 21) + 
-  geom_point() + 
-  geom_abline(slope = 1, intercept = 0, lty = "dashed") + 
-  scale_fill_viridis_b() + 
-  labs(x = "HRT total (days)", y = "HRT mixed layer (days)", fill = "Ratio epilimnion to total volume") + 
-  theme(legend.position = "bottom"))
-
-# quick summary
-summary(lm(HRT ~ HRT.lake, data = corman.vol))
+         HRT = HRT * 365 )
 
 ### aggregate data and conversions
 # GPP

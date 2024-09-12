@@ -4,24 +4,24 @@
 # phytoStoich
 
 # load input and validation data set 
-source("clean_corman.R")
-source("algae_param_vctrs.R")
+source("hcc_clean_corman.R")
+source("hcc_algae_param_vctrs.R")
 
 # load packages
 pck <- c("deSolve", "tidyverse")
 lapply(pck, require, character.only = T)
 
 # load model and parameterize
-source("models/static_liebig_zmix.R") 
+source("hcc_static_liebig_zmix.R") 
 times <- 1:1000
 
 # create in-put grid across which model is run
 static.grid.search <- expand.grid(
-  KP1 = c(1, 5, 10, 15, 20),
-  KN1  = c(20, 30, 40, 50, 60),
-  minQP1 =  c(0.001, 0.005, 0.01, 0.05, 0.1),
-  minQN1 = c(0.01, 0.05, 0.1, 0.15, 0.2),
-  umax1 = c(0.2, 0.5, 1, 1.5)
+  KP1 =  seq(1, 20, 1),
+  KN1  = seq(5, 50, 5),
+  minQP1 =  seq(0.01, 1, 0.01),
+  minQN1 = seq(0.01, 1, 0.01),
+  umax1 = seq(0.1, 1.5, 0.1)
 )
 
 # repeat grid nrow(corman2) times
@@ -83,9 +83,9 @@ static.grid.opt.metrics <- static.grid.opt %>%
   mutate(NSE = 1/(2 - NSE)) # normalize NSE to 0 to 1
 
 # save files
-#save(static.grid.opt, static.grid.opt.metrics,  file = "corman_static_grid_optim.Rdata")
+save(static.grid.opt, static.grid.opt.metrics,  file = "hcc_corman_static_grid_optim.Rdata")
 
 # quick overview of MAE, RMSE, NSE
-hist(static.grid.opt.metrics$MAE)
-hist(static.grid.opt.metrics$RMSE)
-hist(static.grid.opt.metrics$NSE)
+# hist(static.grid.opt.metrics$MAE)
+# hist(static.grid.opt.metrics$RMSE)
+# hist(static.grid.opt.metrics$NSE)

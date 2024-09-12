@@ -105,7 +105,7 @@ base.predictions.corman <- bind_rows(static.out, dynamic.out)
 base.predictions.corman$model <- factor(base.predictions.corman$model, levels = c("static", "dynamic"))
 # wide to long
 base.predictions.corman <- base.predictions.corman %>%
-  gather("species", "est_GPP", -Lake, -c(1:13), -model) %>%
+  gather("species", "est_GPP", -Lake, -c(1:16), -model) %>%
   mutate(species = factor(species, levels = c("average", "diatoms", "greens", "cyanos")))
 
 # create summary/RMSE across species and models
@@ -119,10 +119,11 @@ base.rmse
 base.rmse[,-1] <- apply(base.rmse[,-1], 2, round, 2)
 # calculate rsq values
 rsq <- expand.grid(model = c("static", "dynamic"), 
-                   species = c("average", "diatoms", "greens", "cyanos"))
+                   species = c("average", "diatoms", "greens", "cyanos"), 
+                   Lake = unique(corman2$Lake))
 rsq$rsq <- NA
 r <- lapply(1:nrow(rsq), function(i) {
-  subset <- base.predictions.corman %>% filter(species == rsq[i, "species"]  & model == rsq[i, "model"])
+  subset <- base.predictions.corman %>% filter(species == rsq[i, "species"]  & model == rsq[i, "model"] & Lake ==rsq[i, "Lake"])
   subset <- subset %>%
     mutate(log10GPP = log10(GPP), 
            log10estGPP = log10(est_GPP)) %>%
@@ -131,9 +132,12 @@ r <- lapply(1:nrow(rsq), function(i) {
   return(r)
 })
 rsq$rsq <- round(unlist(r), 2)
+rsq %>% ggplot(aes(Lake, rsq, col = species)) + geom_point() + facet_wrap(model~.)
+rsq.long <- rsq %>% pivot_wider(id_cols = c(Lake, model), names_from = species, values_from = rsq)
 
 ### Plot base predictions
 (predicted.plt <- base.predictions.corman %>%
+    #filter(Lake != "Feeagh" & Lake != "Acton" & Lake != "Langtjern" & Lake != "Trout") %>%
     ggplot() + 
     geom_smooth(aes(GPP, est_GPP), method = "lm", alpha = 0.3) + 
     geom_point(aes(GPP, est_GPP, pch = Lake), size = 2) + 
