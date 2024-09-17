@@ -7,15 +7,7 @@
 ### Stoichiometry model using Droop equation
 # Huisman and Weissing 1995, Kelly et al 2014, Hall et al 2007
 # build model
-
-
-# light attenuation model
-lightAtten<-function(z,I0,kD){
-  Iz=I0*exp(-kD*z)
-  return(Iz)
-}
-
-dynamic.stoich.zmix <- function(times, y, params) {
+dynamic.stoich <- function(times, y, params) {
   
   # parameters; see below for explanation
   # starting params
@@ -28,21 +20,15 @@ dynamic.stoich.zmix <- function(times, y, params) {
   # lake parameters
   SA= params["SA"]
   zmix = params["zmix"]
-  DOC = params["DOC"]
   Pin = params["Pin"]
   Nin = params["Nin"]
   HRT = params["HRT"]
-  
-  # light parameters
-  I0 <- params["I0"]
-  kBg = params["kBg"]
-  kA = params["kA"]
   
   # algae physiology parameters
   umax1 = params["umax1"]
   lA = params["lA"]
   v = params["v"]
-  
+
   # half sat. constant P
   KP1 = params["KP1"]
   # min cell quota P
@@ -55,27 +41,21 @@ dynamic.stoich.zmix <- function(times, y, params) {
   minQN1 = params["minQN1"]
   # uptake rate n
   upN1 = params["upN1"]
-  KLight1 = params["KLight1"]
-  
   
   # In/output
   Qin=SA*1e6*zmix/HRT	# m^3 day^-1
-  
+
   # Volume = entire lake is mixed; zmix = zmax
   V = SA * 1e6 * zmix
   
-  # light attenuation
-  kD <- kA * (A1) + kBg
-  Izmix=lightAtten(z=zmix,I0=I0,kD=kD)
-  
   # biomass specific growth for entire mixed layer
-  # species 1
-  prod1= (umax1/(kD*zmix))*log((KLight1 + I0)/(KLight1+Izmix)) * min(1 - minQN1/QN1, 1 - minQP1/QP1 )	# d-1
+  prod1 = (umax1 * min(1 - minQN1/QN1, 1 - minQP1/QP1 ))	# d-1
+  # gpp rate
   GPP = prod1 * A1/1000 # this is the GPP rate! mg C L^-1 day^-1
   
   # model biomass
   dA1.dt=A1*prod1-lA*A1-v/zmix*A1-Qin/(zmix*SA*1e6)*A1	# mg C m-3
-  
+
   # cell quota P  
   dQP1.dt = upP1 * (P/(KP1 + P)) - prod1  * QP1
   # cell quota N  
@@ -88,10 +68,9 @@ dynamic.stoich.zmix <- function(times, y, params) {
   dN.dt= Qin/(zmix*SA*1e6)*(Nin-N)+ A1 * (-upN1 * (N/(KN1 + N)) +  lA * QN1)  # mg N m-3 (in epi);
   
   # return objects 
-  dY=c(d.GPP = GPP, dPdt=dP.dt, dNdt = dN.dt, dQP1dt = dQP1.dt, dQ1Ndt = dQN1.dt)
   gpp = c(GPP = GPP)
   names(gpp) = "GPP"
-  #lim=c(Plim = Plim, Nlim = Nlim, Llim = Llim, NP_moles = NP_moles, growth.rate = prod)
+  dY=c(dA1dt=dA1.dt, dPdt=dP.dt, dNdt = dN.dt, dQP1dt = dQP1.dt, dQ1Ndt = dQN1.dt)
   return(list(dY, gpp))
   
 } 

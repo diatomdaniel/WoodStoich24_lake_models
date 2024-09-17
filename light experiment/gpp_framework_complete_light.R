@@ -120,7 +120,7 @@ consump.vctr <- tibble(
 # create seston summary w. minQN and minQP
 consump.vctr.seston <- seston %>%
   merge(consump.vctr, by = "species") %>%
-  group_by(species, seston) %>%
+  group_by(species, seston, Pin) %>%
   summarise(minQN_minQP = max(minQN_minQP), 
             CNP = max(value),
             GPP = max(GPP))
@@ -133,10 +133,10 @@ species.legend = c("average", "diatoms","greens", "cyanos")
   # # add in the consumption vctrs ala Tilmann
   # note that consumption vctrs won't match for the static model, only the dynamic as cell quotas change..
   geom_segment(data = consump.vctr.seston,
-               aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species), 
+               aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin), 
                lwd = 1, lty = "dashed") +
   geom_segment(data = consump.vctr.seston,
-               aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species), 
+               aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species, group = Pin), 
                lwd = 0.75, lty = "dashed") +
   # geom_line(data = average, aes(NP_inflow, GPP, col = Pin, group = Pin), lwd = 1) + 
   # geom_point(data = average, aes(NP_inflow, GPP, fill = Pin, group = Pin), pch = 21, size = 2) + 
@@ -167,10 +167,10 @@ species.legend = c("average", "diatoms","greens", "cyanos")
 (cnp.plt <- ggplot() + 
     # add in the consumption vctrs ala Tilmann
     geom_segment(data = consump.vctr.seston, 
-                 aes(y = CNP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species), 
+                 aes(y = CNP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin), 
                  lwd = 1, lty = "dashed") + 
     geom_segment(data = consump.vctr.seston, 
-                 aes(y = CNP, x = minQN_minQP, xend = 0, yend = CNP, col = species), 
+                 aes(y = CNP, x = minQN_minQP, xend = 0, yend = CNP, col = species, group = Pin), 
                  lwd = 1, lty = "dashed") + 
     # data
     # geom_line(data = seston.average, aes(NP_inflow, value, col = Pin, group = Pin), lwd = 1) + 
@@ -200,10 +200,10 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
 (gpp.cnp.plt <- ggplot() + 
     # # add in the consumption vctrs ala Tilmann
     geom_segment(data = consump.vctr.seston,
-                 aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species), 
+                 aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin), 
                  lwd = 0.75, lty = "dashed") +
     geom_segment(data = consump.vctr.seston,
-                 aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species), 
+                 aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species, group = Pin), 
                  lwd = 0.75, lty = "dashed") +
     # data
     # geom_line(data = seston.average, aes(value, GPP, col = Pin, group = Pin), lwd = 1) + 
@@ -220,7 +220,7 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
                size = 2) + 
     scale_x_log10() + scale_y_log10() + 
     #ggh4x::facet_grid2(.~seston) + 
-    ggh4x::facet_grid2(I0 + Pin~seston) + 
+    ggh4x::facet_grid2(I0 + Pin~seston, scales = "free", independent = "y") + 
     scale_shape_manual(values = c(21, 22, 24, 25)) + 
     scale_color_viridis_d() + 
     scale_fill_viridis_d() + 

@@ -1,8 +1,0 @@
-"0",""
-"0","selected.traits %>%"
-"0","  select(-species) %>%"
-"0","  gather(""trait"", ""trait.value"", -system, -taxon) %>%"
-"0","  ggplot(aes(system, log(trait.value))) + "
-"0","  geom_boxplot() + "
-"0","  facet_wrap(trait~.,scales = ""free"")"
-"0",""

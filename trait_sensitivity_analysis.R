@@ -341,7 +341,7 @@ trait.var.combined$trait <- factor(trait.var.combined$trait,
        y =  "GPP mg C L^-1 day^-1",
        col = "N:P inflow mass"))
 
-trait.var.plot
+gpp.sensitivity
 
 
 # plt sensitivity of C:N:P to changing traits

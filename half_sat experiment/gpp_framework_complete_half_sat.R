@@ -9,15 +9,15 @@
 #load packages
 pck <- c("deSolve", "tidyverse", "cowplot", "ggthemes","ggpubr")
 lapply(pck, require, character.only = T)
-setwd("light experiment")
+setwd("half_sat experiment")
 # Load algae parameters
-source("algae_param_vctrs_light.R")
+source("algae_param_vctrs_half_sat.R")
 
 # Load models
 # static model with fixed stoichiometry
-source("static_liebig_zmix_light.R") # model 1 in Carly's framework
+source("static_liebig_no_light_half_sat.R") # model 1 in Carly's framework
 # Droop model
-source("dynamic_liebig_zmix_light.R") # model 3 in Carly's framework
+source("dynamic_liebig_no_light_half_sat.R") # model 3 in Carly's framework
 # set timesteps
 times <- 1:1000 # for troubleshooting, initial runs
 
@@ -27,9 +27,8 @@ times <- 1:1000 # for troubleshooting, initial runs
 
 # set loads
 # low, mid, high P supply --> trophic state
-loads <- expand.grid(Pin = c(50, 100, 500),
-                     NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                     I0 = c(100, 500))
+loads <- expand.grid(Pin = c(1, 3, 5, 10, 20),
+                     NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)))
 loads$Nin <- loads$Pin * loads$NP_inflow
 
 # Static model
@@ -38,9 +37,8 @@ static.runs <-  lapply(list(static.algae, static.diatoms, static.greens, static.
   lapply(1:nrow(loads), function(i) {
     params["Pin"] = loads[i, "Pin"]
     params["Nin"] = loads[i, "Nin"]
-    params["I0"] = loads[i, "I0"]
     y <- c("A1" = 100, "P" = loads[i, "Pin"],"N" = loads[i, "Nin"])
-    run <- ode(y, times, parms = params, func = static.stoich.zmix)
+    run <- ode(y, times, parms = params, func = static.stoich)
     return(run[max(times),])
   })
 })
@@ -57,9 +55,8 @@ dynamic.runs <-  lapply(list(dynamic.algae, dynamic.diatoms, dynamic.greens, dyn
   lapply(1:nrow(loads), function(i) {
     params["Pin"] = loads[i, "Pin"]
     params["Nin"] = loads[i, "Nin"]
-    params["I0"] = loads[i, "I0"]
     y <- c("A1" = 100, "P" = loads[i, "Pin"],"N" = loads[i, "Nin"], "QP1" = 0.015, "QN1" = 0.1)
-    run <- ode(y, times, parms = params, func = dynamic.stoich.zmix)
+    run <- ode(y, times, parms = params, func = dynamic.stoich)
     return(run[max(times),])
   })
 })
@@ -77,11 +74,8 @@ gpp.sims <- bind_rows(static.runs.average, static.runs.diatoms, static.runs.gree
                        each = nrow(loads)),
          Pin = rep(loads$Pin, 8), 
          Pin = paste0("Pin = ", Pin),
-         Pin = factor(Pin, levels = c("Pin = 50", "Pin = 100", "Pin = 500")),
+         PIn = factor(Pin, levels =  paste0("Pin = ", c(1, 3, 5, 10, 20))),
          Nin = rep(loads$Nin, 8), 
-         I0 = rep(loads$I0, 8),
-         I0 = paste0("I0 = ", I0), 
-         I0 = factor(I0, levels = c("I0 = 100", "I0 = 500")),
          NP_inflow = rep(loads$NP_inflow, 8)) %>%
   mutate(model = factor(model, levels = c("static", "dynamic")),
          species = factor(species, levels = c("average", "diatoms", "greens", "cyanos")),
@@ -100,8 +94,8 @@ cyanos <- gpp.sims[gpp.sims$species == "cyanos",]
 # data set for seston
 seston <- gpp.sims  %>%
   mutate("C:N" = 1/QN1,"C:P" = 1/QP1, "N:P" = QN1/QP1, NP_inflow = NP_inflow) %>%
-  select(`C:N`, `C:P`, `N:P`,Pin, NP_inflow, species, GPP, I0) %>%
-  gather("seston", "value", -Pin, -NP_inflow, -species, -GPP, -I0) %>%
+  select(`C:N`, `C:P`, `N:P`,Pin, NP_inflow, species, GPP) %>%
+  gather("seston", "value", -Pin, -NP_inflow, -species, -GPP) %>%
   mutate(seston = factor(seston, levels = c("C:N", "C:P", "N:P"))) %>% 
   drop_na()
 
@@ -120,7 +114,7 @@ consump.vctr <- tibble(
 # create seston summary w. minQN and minQP
 consump.vctr.seston <- seston %>%
   merge(consump.vctr, by = "species") %>%
-  group_by(species, seston) %>%
+  group_by(species, seston, Pin) %>%
   summarise(minQN_minQP = max(minQN_minQP), 
             CNP = max(value),
             GPP = max(GPP))
@@ -133,10 +127,10 @@ species.legend = c("average", "diatoms","greens", "cyanos")
   # # add in the consumption vctrs ala Tilmann
   # note that consumption vctrs won't match for the static model, only the dynamic as cell quotas change..
   geom_segment(data = consump.vctr.seston,
-               aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species), 
+               aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin), 
                lwd = 1, lty = "dashed") +
   geom_segment(data = consump.vctr.seston,
-               aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species), 
+               aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species, group = Pin), 
                lwd = 0.75, lty = "dashed") +
   # geom_line(data = average, aes(NP_inflow, GPP, col = Pin, group = Pin), lwd = 1) + 
   # geom_point(data = average, aes(NP_inflow, GPP, fill = Pin, group = Pin), pch = 21, size = 2) + 
@@ -155,22 +149,22 @@ species.legend = c("average", "diatoms","greens", "cyanos")
              size = 2) + 
   scale_x_log10() + scale_y_log10() + 
   #ggh4x::facet_grid2(.~model) + 
-  ggh4x::facet_grid2(I0 + Pin ~ model, scales = "free", independent = "y") + 
+  ggh4x::facet_grid2(Pin~model, scales = "free", independent = "y") + 
   scale_shape_manual(values = c(21, 22, 24, 25)) + 
   scale_color_viridis_d() + 
   scale_fill_viridis_d() + 
-  #guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
-  labs(x = "N:P inflow mass", y = "GPP mg C L^-1 day^-1", col = "species", pch = "species"))
+  guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
+  labs(x = "N:P inflow mass", y = "GPP mg C L^-1 day^-1", col = "species"))
 
 
 # plot CNP across supply N:P for each species
 (cnp.plt <- ggplot() + 
     # add in the consumption vctrs ala Tilmann
     geom_segment(data = consump.vctr.seston, 
-                 aes(y = CNP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species), 
+                 aes(y = CNP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin), 
                  lwd = 1, lty = "dashed") + 
     geom_segment(data = consump.vctr.seston, 
-                 aes(y = CNP, x = minQN_minQP, xend = 0, yend = CNP, col = species), 
+                 aes(y = CNP, x = minQN_minQP, xend = 0, yend = CNP, col = species, group = Pin), 
                  lwd = 1, lty = "dashed") + 
     # data
     # geom_line(data = seston.average, aes(NP_inflow, value, col = Pin, group = Pin), lwd = 1) + 
@@ -186,12 +180,12 @@ species.legend = c("average", "diatoms","greens", "cyanos")
     geom_point(data = seston, aes(NP_inflow, value, fill = species, pch = species, group = Pin), size = 2) + 
     scale_x_log10() + scale_y_log10() + 
     #ggh4x::facet_grid2(.~seston, scales = "free", independent = "y") + 
-    ggh4x::facet_grid2(I0 + Pin ~seston, scales = "free", independent = "y") + 
+    ggh4x::facet_grid2(Pin~seston, scales = "free", independent = "y") + 
     scale_shape_manual(values = c(21, 22, 23, 24)) + 
     scale_color_viridis_d() + 
     scale_fill_viridis_d() + 
     #guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
-    labs(x = "N:P inflow mass", y = "C:N:P", col = "species", shape = "species"))
+    labs(x = "N:P inflow mass", y = "C:N:P", col = "species"))
 
 
 # plot GPP across CNP for each species
@@ -200,10 +194,10 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
 (gpp.cnp.plt <- ggplot() + 
     # # add in the consumption vctrs ala Tilmann
     geom_segment(data = consump.vctr.seston,
-                 aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species), 
+                 aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin), 
                  lwd = 0.75, lty = "dashed") +
     geom_segment(data = consump.vctr.seston,
-                 aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species), 
+                 aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species, group = Pin), 
                  lwd = 0.75, lty = "dashed") +
     # data
     # geom_line(data = seston.average, aes(value, GPP, col = Pin, group = Pin), lwd = 1) + 
@@ -214,13 +208,13 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
     # geom_point(data = seston.greens, aes(value, GPP, fill = Pin, group = Pin, alpha = log(NP_inflow)), pch = 23, size = 2) + 
     # geom_line(data = seston.cyanos, aes(value, GPP, col = Pin, group = Pin), lwd = 1) + 
     # geom_point(data = seston.cyanos, aes(value, GPP, fill = Pin, group = Pin, alpha = log(NP_inflow)), pch = 24, size = 2) + 
-    geom_line(data = seston, aes(value, GPP, col = species, alpha = NP_inflow, group = interaction(species, Pin)),
+    geom_line(data = seston, aes(value, GPP, col = species, alpha = NP_inflow),
               lwd = 0.75) + 
-    geom_point(data = seston, aes(value, GPP, fill = species, pch = species, alpha = NP_inflow, group = interaction(species, Pin)), 
+    geom_point(data = seston, aes(value, GPP, fill = species, pch = species, alpha = NP_inflow, group = interaction(NP_inflow, species)), 
                size = 2) + 
     scale_x_log10() + scale_y_log10() + 
     #ggh4x::facet_grid2(.~seston) + 
-    ggh4x::facet_grid2(I0 + Pin~seston) + 
+    ggh4x::facet_grid2(Pin~seston, scales = "free", independent = "y") + 
     scale_shape_manual(values = c(21, 22, 24, 25)) + 
     scale_color_viridis_d() + 
     scale_fill_viridis_d() + 

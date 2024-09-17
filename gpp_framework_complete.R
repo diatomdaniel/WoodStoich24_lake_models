@@ -31,6 +31,7 @@ loads <- expand.grid(Pin = c(50, 100, 500),
                      NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)))
 loads$Nin <- loads$Pin * loads$NP_inflow
 
+
 # Static model
 static.runs <-  lapply(list(static.algae, static.diatoms, static.greens, static.cyanos), function(x) {
   params <- x
@@ -73,6 +74,8 @@ gpp.sims <- bind_rows(static.runs.average, static.runs.diatoms, static.runs.gree
          species = rep(c("average", "diatoms", "greens", "cyanos","average", "diatoms", "greens", "cyanos"),
                        each = nrow(loads)),
          Pin = rep(loads$Pin, 8), 
+         Pin = paste0("Pin = ", Pin),
+         Pin = factor(Pin, levels = paste0("Pin = ", c(50, 100, 500))),
          Nin = rep(loads$Nin, 8), 
          NP_inflow = rep(loads$NP_inflow, 8)) %>%
   mutate(model = factor(model, levels = c("static", "dynamic")),
@@ -112,7 +115,7 @@ consump.vctr <- tibble(
 # create seston summary w. minQN and minQP
 consump.vctr.seston <- seston %>%
   merge(consump.vctr, by = "species") %>%
-  group_by(species, seston) %>%
+  group_by(species, seston, Pin) %>%
   summarise(minQN_minQP = max(minQN_minQP), 
             CNP = max(value),
             GPP = max(GPP))
@@ -125,10 +128,10 @@ species.legend = c("average", "diatoms","greens", "cyanos")
   # # add in the consumption vctrs ala Tilmann
   # note that consumption vctrs won't match for the static model, only the dynamic as cell quotas change..
   geom_segment(data = consump.vctr.seston,
-               aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species), 
+               aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin), 
                lwd = 1, lty = "dashed") +
   geom_segment(data = consump.vctr.seston,
-               aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species), 
+               aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species, group = Pin), 
                lwd = 0.75, lty = "dashed") +
   # geom_line(data = average, aes(NP_inflow, GPP, col = Pin, group = Pin), lwd = 1) + 
   # geom_point(data = average, aes(NP_inflow, GPP, fill = Pin, group = Pin), pch = 21, size = 2) + 
@@ -143,26 +146,26 @@ species.legend = c("average", "diatoms","greens", "cyanos")
                                  col = species, group = interaction(species, Pin)),
             lwd = 0.75) +
   geom_point(data = gpp.sims, aes(x = NP_inflow, y = GPP,
-                                 fill = species, pch = Pin, group = Pin),
+                                 fill = species, pch = species, group = Pin),
              size = 2) + 
   scale_x_log10() + scale_y_log10() + 
   #ggh4x::facet_grid2(.~model) + 
   ggh4x::facet_grid2(Pin~model) + 
-  scale_shape_manual(values = c(21, 22, 24)) + 
+  scale_shape_manual(values = c(21, 22, 24, 25)) + 
   scale_color_viridis_d() + 
   scale_fill_viridis_d() + 
-  guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
-  labs(x = "N:P inflow mass", y = "GPP mg C L^-1 day^-1", col = "P in ug L^-1"))
+  #guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
+  labs(x = "N:P inflow mass", y = "GPP mg C L^-1 day^-1", col = "species"))
 
 
 # plot CNP across supply N:P for each species
 (cnp.plt <- ggplot() + 
     # add in the consumption vctrs ala Tilmann
     geom_segment(data = consump.vctr.seston, 
-                 aes(y = CNP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species), 
+                 aes(y = CNP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin), 
                  lwd = 1, lty = "dashed") + 
     geom_segment(data = consump.vctr.seston, 
-                 aes(y = CNP, x = minQN_minQP, xend = 0, yend = CNP, col = species), 
+                 aes(y = CNP, x = minQN_minQP, xend = 0, yend = CNP, col = species, group = Pin), 
                  lwd = 1, lty = "dashed") + 
     # data
     # geom_line(data = seston.average, aes(NP_inflow, value, col = Pin, group = Pin), lwd = 1) + 
@@ -175,15 +178,15 @@ species.legend = c("average", "diatoms","greens", "cyanos")
     # geom_point(data = seston.cyanos, aes(NP_inflow, value, fill = Pin, group = Pin), pch = 24, size = 2) +
     geom_line(data = seston, aes(NP_inflow, value, col = species, group = interaction(species, Pin)), 
               lwd = 0.75) + 
-    geom_point(data = seston, aes(NP_inflow, value, fill = species, pch = Pin, group = Pin), size = 2) + 
+    geom_point(data = seston, aes(NP_inflow, value, fill = species, pch = species, group = Pin), size = 2) + 
     scale_x_log10() + scale_y_log10() + 
     #ggh4x::facet_grid2(.~seston, scales = "free", independent = "y") + 
     ggh4x::facet_grid2(Pin~seston, scales = "free", independent = "y") + 
-    scale_shape_manual(values = c(21, 22, 23)) + 
+    scale_shape_manual(values = c(21, 22, 23, 24)) + 
     scale_color_viridis_d() + 
     scale_fill_viridis_d() + 
-    guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
-    labs(x = "N:P inflow mass", y = "C:N:P", col = "P in ug L^-1"))
+    #guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
+    labs(x = "N:P inflow mass", y = "C:N:P", col = "species"))
 
 
 # plot GPP across CNP for each species
@@ -192,10 +195,10 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
 (gpp.cnp.plt <- ggplot() + 
     # # add in the consumption vctrs ala Tilmann
     geom_segment(data = consump.vctr.seston,
-                 aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species), 
+                 aes(y = GPP, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin), 
                  lwd = 0.75, lty = "dashed") +
     geom_segment(data = consump.vctr.seston,
-                 aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species), 
+                 aes(y = GPP, x = minQN_minQP, xend = 0, yend = GPP, col = species, group = Pin), 
                  lwd = 0.75, lty = "dashed") +
     # data
     # geom_line(data = seston.average, aes(value, GPP, col = Pin, group = Pin), lwd = 1) + 
@@ -206,31 +209,36 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
     # geom_point(data = seston.greens, aes(value, GPP, fill = Pin, group = Pin, alpha = log(NP_inflow)), pch = 23, size = 2) + 
     # geom_line(data = seston.cyanos, aes(value, GPP, col = Pin, group = Pin), lwd = 1) + 
     # geom_point(data = seston.cyanos, aes(value, GPP, fill = Pin, group = Pin, alpha = log(NP_inflow)), pch = 24, size = 2) + 
-    geom_line(data = seston, aes(value, GPP, col = species, alpha = NP_inflow, group = interaction(species, Pin)),
+    geom_line(data = seston, aes(value, GPP, col = species, alpha = NP_inflow, group = species),
               lwd = 0.75) + 
-    geom_point(data = seston, aes(value, GPP, fill = species, pch = Pin, alpha = NP_inflow, group = interaction(species, Pin)), 
+    geom_point(data = seston, aes(value, GPP, fill = species, pch = species, alpha = NP_inflow, group = species), 
                size = 2) + 
     scale_x_log10() + scale_y_log10() + 
     #ggh4x::facet_grid2(.~seston) + 
-    ggh4x::facet_grid2(Pin~seston) + 
-    scale_shape_manual(values = c(21, 22, 24)) + 
+    ggh4x::facet_grid2(Pin~seston, scales = "free", independent = "y") + 
+    scale_shape_manual(values = c(21, 22, 24, 25)) + 
     scale_color_viridis_d() + 
     scale_fill_viridis_d() + 
-    guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
+    #guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
     scale_alpha(range=c(0.5,1), na.value = 0) + 
-    labs(x = "C:N:P molar", y = "GPP mg C L^-1 day_1", col = "P in ug L^-1", size = "Inflow log(N:P) mass"))
+    labs(x = "C:N:P molar", y = "GPP mg C L^-1 day_1", col = "species", size = "Inflow log(N:P) mass"))
 
 ################################################################################
 
 # arrange figures
 # seston plots go together
-seston.figs <- ggarrange(plotlist = list(cnp.plt, gpp.cnp.plt), align = "hv", ncol = 2, labels = c("b", "c"))
+seston.figs <- ggarrange(plotlist = list(cnp.plt, gpp.cnp.plt), align = "hv", ncol = 2, labels = c("b", "c"), 
+                         common.legend = T)
 seston.figs
 
 # add to gpp plot
 #gpp.plt2 <- ggarrange(plotlist = list(gpp.plt, ggplot() + geom_blank()), nrow = 2, labels = c("a", ""))
 
-framework.fig <- ggarrange(plotlist = list(gpp.plt, seston.figs),ncol = 2, labels = c("a", ""), 
-                           align = "hv", widths = c(1/3, 2/3))
+framework.fig <- ggarrange(plotlist = list(gpp.plt, seston.figs),ncol = 1, nrow = 2, labels = c("a", ""), 
+                           align = "hv", common.legend = T)
 framework.fig
 # manually add legend in powerpoint
+
+# save figures individually
+save_plot("figures/framework_GPP.png", gpp.plt)
+seston.figs

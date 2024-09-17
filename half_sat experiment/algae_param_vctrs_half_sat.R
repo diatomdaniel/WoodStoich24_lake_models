@@ -3,7 +3,7 @@
 ### Code to store algae parameter vectors
 
 # load traits used to fill lists
-traits <- readr::read_csv("data4input/phyto_traits4models_21June2024.csv")[,-1]
+traits <- readr::read_csv("phyto_traits4models_21June2024.csv")[,-1]
 
 # average algae static model
 

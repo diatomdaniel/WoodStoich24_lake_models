@@ -1,4 +1,11 @@
-"0",""
-"0","# save file"
-"0","#write.csv(freshwater.traits.long, ""data4input/overview_freshwater_traits.csv"")"
-"0",""
+"0","freshwater.traits.long <- freshwater.traits %>%
+  gather(""Trait"", ""Trait.Value"", -species, -taxon, -system)
+# get summary for n()
+freshwater.traits.summary <- freshwater.traits.long %>%
+  select(-system) %>%
+  group_by(taxon, Trait) %>%
+  drop_na() %>%
+  summarise(n = n(),
+            Median.Trait.Value = median(Trait.Value, na.rm =T))
+"
+"2","`summarise()` has grouped output by 'taxon'. You can override using the `.groups` argument."
