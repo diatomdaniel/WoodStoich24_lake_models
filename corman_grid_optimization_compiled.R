@@ -3,7 +3,8 @@
 ### Corman et al GPP grid search
 ### DG, September 2024
 
-
+# set wd
+setwd("C:/Users/DanielGschwentner/Documents/GitHub/WoodStoich24_lake_models")
 ###############################################################################
 # Setup
 # load Corman data (needs to be run first!
