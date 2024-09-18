@@ -89,6 +89,9 @@ Water_field_final <- Water_field  %>% select(date_siteID, eventID, #to identify 
                                                            remarks)
 
 ## extract nutrient dataframes --------------------------------------------
+## extract nutrient dataframes --------------------------------------------
+nutrients_field$
+
 # extract needed pelagic zone nutrient samples
 nutrients_field <- nutrients$alg_algaeExternalLabDataPerSample
 # delete littoral instances
@@ -96,13 +99,16 @@ nutrients_field <- nutrients_field[grepl("buoy", nutrients_field$namedLocation),
 # add eventID to nutrient field data
 nutrients_field$eventID <- paste(nutrients_field$siteID, nutrients_field$collectDate, sep=".")
 nutrients_field$eventID <- gsub("-", "", nutrients_field$eventID) # remove - to normalize to water_field
+# add units 
+nutrients_field$analyte_unit <- paste(nutrients_field$analyte, nutrients_field$plantAlgaeLabUnits , sep="_")
+
 # pivot from analyte long to analyte wide format and keep eventID as normalization key
-nutrients_field_wide <- pivot_wider(nutrients_field, names_from = analyte, values_from = analyteConcentration)
-c <- nutrients_field_wide %>% select(eventID, carbon)
+nutrients_field_wide <- pivot_wider(nutrients_field, names_from = analyte_unit, values_from = analyteConcentration)
+c <- nutrients_field_wide %>% select(eventID, carbon_microgramsPerLiter)  
 c <- c[complete.cases(c), ]
-n <- nutrients_field_wide %>% select(eventID, nitrogen)
+n <- nutrients_field_wide %>% select(eventID, nitrogen_microgramsPerLiter) 
 n <- n[complete.cases(n), ]
-p <- nutrients_field_wide %>% select(eventID, phosphorus)
+p <- nutrients_field_wide %>% select(eventID, phosphorus_microgramsPerLiter)
 p <- p[complete.cases(p), ]
 nutrients_field_2 <- merge(c,n)
 nutrients_field_final <- merge(nutrients_field_2, p)
@@ -118,7 +124,16 @@ df_combined2 <- df_combined %>%
 
 # reduce the df to only include the data we need
 NEON_wide <- df_combined2 %>%
-  select(namedLocation.x, scientificName, division, class, order, family, genus, specificEpithet, eventID, algalCountPerMl, carbon, nitrogen, phosphorus)
+  select(namedLocation.x, scientificName, siteID.y, division, class, order, family, genus, specificEpithet, eventID, algalCountPerMl, carbon_microgramsPerLiter, nitrogen_microgramsPerLiter, phosphorus_microgramsPerLiter)
 
 # Write to file 
 write.csv(NEON_wide, "D:\\Research\\Projects\\Woodstoich_5\\NEON_long.csv", row.names=FALSE)
+
+library(dplyr)
+NEON_wide_Summary <- NEON_wide %>%
+  group_by(siteID.y) %>%
+  summarise(
+    across(
+      c(carbon_microgramsPerLiter, nitrogen_microgramsPerLiter, phosphorus_microgramsPerLiter), 
+      list(mean = ~ mean(.x, na.rm = TRUE)))
+  )
