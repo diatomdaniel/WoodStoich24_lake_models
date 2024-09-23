@@ -117,23 +117,23 @@ base.predictions.corman <- base.predictions.corman %>%
 ### Decided to visualize density distributions of z-scores for models and measured GPP; better for pattern comparison? 
 (gpp.density <- base.predictions.corman %>%
   ggplot() + 
-  geom_density(aes(zscore_gpp),  col = "black", alpha = 0.3) + 
-  geom_density(aes(zscore_obs_gpp), fill = "grey20", col = "black", alpha = 0.3) + 
-  facet_grid(model~species, scales = "free_y") + 
-  labs(x = "z-score observed and measured GPP", y = "Density"))
+  geom_density(aes(log(GPP + 0.1)),  col = "black", alpha = 0.3) + 
+  geom_density(aes(log(est_GPP + 0.1)), fill = "grey20", col = "black", alpha = 0.3) + 
+  ggh4x::facet_grid2(model~species, independent = "y", scales = "free_y") + 
+  labs(x = expression("log(GPP mg C L"^-1 ~ "day"^-1 ~"+ 0.1)"), y = "Density"))
 
-save_plot("figures/gpp_validation_densities.png", gpp.density, base_height = 6, base_width = 8)
+save_plot("figures/gpp_validation_densities.png", gpp.density, base_height = 6, base_width = 9)
 
 # add regression coefs (manually)
-summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "average", ]))
-summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "diatoms", ]))
-summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "greens", ]))
-summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "cyanos", ]))
+summary(lm(log(GPP + 0.1) ~ log(est_GPP + 0.1), data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "average", ]))
+summary(lm(log(GPP + 0.1) ~ log(est_GPP + 0.1), data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "diatoms", ]))
+summary(lm(log(GPP + 0.1) ~ log(est_GPP + 0.1), data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "greens", ]))
+summary(lm(log(GPP + 0.1) ~ log(est_GPP + 0.1), data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "cyanos", ]))
 
-summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "dynamic" & base.predictions.corman$species == "average", ]))
-summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "dynamic" & base.predictions.corman$species == "diatoms", ]))
-summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "dynamic" & base.predictions.corman$species == "greens", ]))
-summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "dynamic" & base.predictions.corman$species == "cyanos", ]))
+summary(lm(log(GPP + 0.1) ~ log(est_GPP + 0.1), data = base.predictions.corman[base.predictions.corman$model == "dynamic" & base.predictions.corman$species == "average", ]))
+summary(lm(log(GPP + 0.1) ~ log(est_GPP + 0.1), data = base.predictions.corman[base.predictions.corman$model == "dynamic" & base.predictions.corman$species == "diatoms", ]))
+summary(lm(log(GPP + 0.1) ~ log(est_GPP + 0.1), data = base.predictions.corman[base.predictions.corman$model == "dynamic" & base.predictions.corman$species == "greens", ]))
+summary(lm(log(GPP + 0.1) ~ log(est_GPP + 0.1), data = base.predictions.corman[base.predictions.corman$model == "dynamic" & base.predictions.corman$species == "cyanos", ]))
 
 
 ################################################################################
