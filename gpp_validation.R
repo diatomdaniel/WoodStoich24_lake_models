@@ -122,8 +122,9 @@ base.predictions.corman <- base.predictions.corman %>%
   facet_grid(model~species, scales = "free_y") + 
   labs(x = "z-score observed and measured GPP", y = "Density"))
 
-# add regression coefs (manually)
+save_plot("figures/gpp_validation_densities.png", gpp.density, base_height = 6, base_width = 8)
 
+# add regression coefs (manually)
 summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "average", ]))
 summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "diatoms", ]))
 summary(lm(zscore_obs_gpp ~ zscore_gpp, data = base.predictions.corman[base.predictions.corman$model == "static" & base.predictions.corman$species == "greens", ]))
