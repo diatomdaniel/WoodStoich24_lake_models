@@ -10,18 +10,13 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r include = F, message = F, warning=F}
+rm(list = ls())
+setwd("C:/Users/DanielGschwentner/Documents/GitHub/WoodStoich24_lake_models")
 # load packages
 pck <- c("tidyverse", "cowplot", "ggthemes", "wesandersen", "ggpubr")
 lapply(pck, require, character.only = T)
 # set plotting theme
-theme_set(theme_clean() + 
-          theme(text = element_text(color = "black"), 
-                axis.text = element_text(color = "black"),
-                axis.title = element_text(color = "black"),
-                legend.text = element_text(color = "black"),
-                legend.title = element_text(color = "black"),
-                legend.justification = "center", 
-                legend.position = "bottom"))
+theme_set(theme_pubr() + theme(legend.position = "bottom"))
 
 ```
 
@@ -50,6 +45,14 @@ new.groups <- tibble(
 # merge back in
 fresh.traits <- merge(fresh.traits, new.traits, by = "Trait")
 fresh.traits <- merge(fresh.traits, new.groups, by = "taxon")
+
+# some quick numerical editing for KN and KP
+fresh.traits <- fresh.traits %>%
+  mutate(Trait.Value = ifelse(Trait.new == "KN", Trait.Value * 1000, Trait.Value),
+         Trait.Value = ifelse(Trait.new == "KP", Trait.Value * 1000, Trait.Value),
+         Median.Trait.Value = ifelse(Trait.new == "KN", Median.Trait.Value * 1000, Median.Trait.Value),
+         Median.Trait.Value = ifelse(Trait.new == "KP", Median.Trait.Value * 1000, Median.Trait.Value))
+
 ```
 create plot 
 

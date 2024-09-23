@@ -3,12 +3,15 @@
 ### GPP and C:N:P sensitivity analysis
 ### DG, September 2024
 
-
+# set wd
+rm(list = ls())
+setwd("C:/Users/DanielGschwentner/Documents/GitHub/WoodStoich24_lake_models")
 ###############################################################################
 # Setup
 #load packages
 pck <- c("deSolve", "tidyverse", "cowplot", "ggthemes","ggpubr")
 lapply(pck, require, character.only = T)
+theme_set(theme_pubr() + theme(legend.position = "bottom"))
 
 # Load algae parameters
 source("algae_param_vctrs.R")
@@ -19,8 +22,10 @@ source("models/static_liebig_no_light.R") # model 1 in Carly's framework
 # Droop model
 source("models/dynamic_liebig_no_light.R") # model 3 in Carly's framework
 # set timesteps
-times <- 1:1000 # for troubleshooting, initial runs
+times <- 1:2000 # for troubleshooting, initial runs
 
+# re-load data instead of running sims again
+load("sensitivity_analysis.Rdata")
 
 ################################################################################
 
@@ -28,8 +33,8 @@ times <- 1:1000 # for troubleshooting, initial runs
 
 ### Static model
 # KP
-kp.loads <- expand.grid(Pin = seq(20, 500, 100),
-                        NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
+kp.loads <- expand.grid(Pin = c(5, seq(10, 500, 20)),
+                        NP_inflow = seq(5, 100, 5), 
                         KP1 = c(1, 5, 10, 15, 30, 50))
 kp.loads$Nin <- kp.loads$Pin * kp.loads$NP_inflow
 
@@ -51,9 +56,9 @@ kp.static$trait = "KP"
 kp.static$trait.value = kp.loads$KP1
 
 # KN
-kn.loads <- expand.grid(Pin = seq(20, 500, 100),
-                        NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                        KN1 = c(10, 20, 30, 50, 100))
+kn.loads <- expand.grid(Pin = c(5, seq(10, 500, 20)),
+                        NP_inflow = seq(5, 100, 5), 
+                        KN1 = c(5, 10, 20, 30, 50, 100))
 kn.loads$Nin <- kn.loads$Pin * kn.loads$NP_inflow
 
 kn.static <- lapply(1:nrow(kn.loads), function(i) {
@@ -74,9 +79,9 @@ kn.static$trait = "KN"
 kn.static$trait.value = kn.loads$KN1
 
 # QP
-qp.loads <- expand.grid(Pin = seq(20, 500, 100),
-                        NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                        QP1 = c(0.001, 0.005, 0.01, 0.05, 0.1))
+qp.loads <- expand.grid(Pin = c(5, seq(10, 500, 20)),
+                        NP_inflow = seq(5, 100, 5),  
+                        QP1 = c(0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.5))
 qp.loads$Nin <- qp.loads$Pin * qp.loads$NP_inflow
 
 qp.static <- lapply(1:nrow(qp.loads), function(i) {
@@ -98,9 +103,9 @@ qp.static$trait.value = qp.loads$QP1
 
 
 # QN
-qn.loads <- expand.grid(Pin = seq(20, 500, 100),
-                        NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                        QN1 = c(0.01, 0.05, 0.1, 0.5))
+qn.loads <- expand.grid(Pin = c(5, seq(10, 500, 20)),
+                        NP_inflow = seq(5, 100, 5), 
+                        QN1 = c(0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.5))
 qn.loads$Nin <- qn.loads$Pin * qn.loads$NP_inflow
 
 qn.static <- lapply(1:nrow(qn.loads), function(i) {
@@ -121,8 +126,8 @@ qn.static$trait = "minQN"
 qn.static$trait.value = qn.loads$QN1
 
 # rmax
-umax.loads <- expand.grid(Pin = seq(20, 500, 100),
-                          NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
+umax.loads <- expand.grid(Pin = c(5, seq(10, 500, 20)),
+                          NP_inflow = seq(5, 100, 5), 
                           umax1 = c(0.1, 0.2, 0.5, 0.8, 1))
 umax.loads$Nin <- umax.loads$Pin * umax.loads$NP_inflow
 
@@ -151,10 +156,6 @@ static.trait.var$model <- "static"
 ### Dynamic model
 
 # KP
-kp.loads <- expand.grid(Pin = seq(20, 500, 100),
-                        NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                        KP1 = c(1, 5, 10, 15, 30, 50))
-kp.loads$Nin <- kp.loads$Pin * kp.loads$NP_inflow
 
 kp.dynamic <- lapply(1:nrow(kp.loads), function(i) {
   #print(i)
@@ -174,10 +175,6 @@ kp.dynamic$trait = "KP"
 kp.dynamic$trait.value = kp.loads$KP1
 
 # KN
-kn.loads <- expand.grid(Pin = seq(20, 500, 100),
-                        NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                        KN1 = c(10, 20, 30, 50, 100))
-kn.loads$Nin <- kn.loads$Pin * kn.loads$NP_inflow
 
 kn.dynamic <- lapply(1:nrow(kn.loads), function(i) {
   #print(i)
@@ -197,16 +194,12 @@ kn.dynamic$trait = "KN"
 kn.dynamic$trait.value = kn.loads$KN1
 
 # QP
-qp.loads <- expand.grid(Pin = seq(20, 500, 100),
-                        NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                        minQP1 = c(0.001, 0.005, 0.01, 0.05, 0.1))
-qp.loads$Nin <- qp.loads$Pin * qp.loads$NP_inflow
 
 qp.dynamic <- lapply(1:nrow(qp.loads), function(i) {
   #print(i)
   dynamic.algae["Pin"] = qp.loads[i, "Pin"]
   dynamic.algae["Nin"] = qp.loads[i, "Nin"]
-  dynamic.algae["minQP1"] = qp.loads[i, "minQP1"]
+  dynamic.algae["minQP1"] = qp.loads[i, "QP1"]
   y <- c("A1" = 100, "P" = qp.loads[i, "Pin"],"N" = qp.loads[i, "Nin"],  "QP1" = 0.015, "QN1" = 0.1)
   run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich)
   return(run[max(times),])
@@ -217,20 +210,16 @@ qp.dynamic$Pin <- qp.loads$Pin
 qp.dynamic$Nin <- qp.loads$Nin
 qp.dynamic$NP_inflow <- qp.loads$NP_inflow
 qp.dynamic$trait = "minQP"
-qp.dynamic$trait.value = qp.loads$minQP1
+qp.dynamic$trait.value = qp.loads$QP1
 
 
 # QN
-qn.loads <- expand.grid(Pin = seq(20, 500, 100),
-                        NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                        minQN1 = c(0.01, 0.05, 0.1, 0.5))
-qn.loads$Nin <- qn.loads$Pin * qn.loads$NP_inflow
 
 qn.dynamic <- lapply(1:nrow(qn.loads), function(i) {
   #print(i)
   dynamic.algae["Pin"] = qn.loads[i, "Pin"]
   dynamic.algae["Nin"] = qn.loads[i, "Nin"]
-  dynamic.algae["minQN1"] = qn.loads[i, "minQN1"]
+  dynamic.algae["minQN1"] = qn.loads[i, "QN1"]
   y <- c("A1" = 100, "P" = qn.loads[i, "Pin"],"N" = qn.loads[i, "Nin"],  "QP1" = 0.015, "QN1" = 0.1)
   run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich)
   return(run[max(times),])
@@ -241,12 +230,12 @@ qn.dynamic$Pin <- qn.loads$Pin
 qn.dynamic$Nin <- qn.loads$Nin
 qn.dynamic$NP_inflow <- qn.loads$NP_inflow
 qn.dynamic$trait = "minQN"
-qn.dynamic$trait.value = qn.loads$minQN1
+qn.dynamic$trait.value = qn.loads$QN1
 
 # VmaxP
-vmaxP.loads <- expand.grid(Pin = seq(20, 500, 100),
-                           NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                           upP1 = c(0.01, 0.05, 0.1, 0.5, 1))
+vmaxP.loads <- expand.grid(Pin = c(5, seq(10, 500, 20)),
+                           NP_inflow = seq(5, 100, 5), 
+                           upP1 = c(0.1, 0.25, 0.5, 1, 2))
 vmaxP.loads$Nin <- vmaxP.loads$Pin * vmaxP.loads$NP_inflow
 
 vmaxP.dynamic <- lapply(1:nrow(vmaxP.loads), function(i) {
@@ -267,9 +256,9 @@ vmaxP.dynamic$trait = "VmaxP"
 vmaxP.dynamic$trait.value = vmaxP.loads$upP1
 
 # VmaxN
-vmaxN.loads <- expand.grid(Pin = seq(20, 500, 100),
-                           NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                           upN1 = c(0.01, 0.05, 0.1, 0.5, 1, 5))
+vmaxN.loads <- expand.grid(Pin = c(5, seq(10, 500, 20)),
+                           NP_inflow = seq(5, 100, 5), 
+                           upN1 = c(0.1, 0.25, 0.5, 1, 2, 5))
 vmaxN.loads$Nin <- vmaxN.loads$Pin * vmaxN.loads$NP_inflow
 
 vmaxN.dynamic <- lapply(1:nrow(vmaxN.loads), function(i) {
@@ -290,10 +279,6 @@ vmaxN.dynamic$trait <- "VmaxN"
 vmaxN.dynamic$trait.value = vmaxN.loads$upN1
 
 # umax
-umax.loads <- expand.grid(Pin = seq(20, 500, 100),
-                          NP_inflow = c(1, 2, 3, 7.23, seq(5, 100, 5)), 
-                          umax1 = c(0.1, 0.2, 0.5, 0.8, 1))
-umax.loads$Nin <- umax.loads$Pin * umax.loads$NP_inflow
 
 umax.dynamic <- lapply(1:nrow(umax.loads), function(i) {
   #print(i)
@@ -326,6 +311,68 @@ trait.var.combined$trait <- factor(trait.var.combined$trait,
 
 ################################################################################
 
+# baseline simulations for z-scores
+loads <- expand.grid(Pin = c(5, seq(10, 500, 20)),
+                     NP_inflow = seq(5, 100, 5))
+loads$Nin <- loads$Pin * loads$NP_inflow
+
+# run baselines for static, dynamic model
+# static
+static.baselines <- lapply(1:nrow(loads), function(i) {
+  #print(i)
+  static.algae["Pin"] = loads[i, "Pin"]
+  static.algae["Nin"] = loads[i, "Nin"]
+  y <- c("A1" = 100, "P" = loads[i, "Pin"],"N" = loads[i, "Nin"])
+  run <- ode(y, times, parms = static.algae, func = static.stoich)
+  return(run[max(times),])
+})
+static.baselines <- do.call(rbind, static.baselines)
+static.baselines <- as_data_frame(static.baselines)
+# edit names
+colnames(static.baselines) <- paste0("baseline_", colnames(static.baselines))
+# add metadata
+static.baselines$Pin <- loads$Pin
+static.baselines$NP_inflow <- loads$NP_inflow
+static.baselines$Nin <- loads$Nin
+static.baselines$model <- "static"
+
+# dynamic
+dynamic.baselines <- lapply(1:nrow(loads), function(i) {
+  #print(i)
+  dynamic.algae["Pin"] = loads[i, "Pin"]
+  dynamic.algae["Nin"] = loads[i, "Nin"]
+  y <- c("A1" = 100, "P" =loads[i, "Pin"],"N" = loads[i, "Nin"], "QP1" = 0.015, "QN1" = 0.1)
+  run <- ode(y, times, parms = dynamic.algae, func = dynamic.stoich)
+  return(run[max(times),])
+})
+dynamic.baselines <- do.call(rbind, dynamic.baselines)
+dynamic.baselines <- as_data_frame(dynamic.baselines)
+# edit names
+colnames(dynamic.baselines) <- paste0("baseline_", colnames(dynamic.baselines))
+# add metadata
+dynamic.baselines$Pin <- loads$Pin
+dynamic.baselines$NP_inflow <- loads$NP_inflow
+dynamic.baselines$Nin <- loads$Nin
+dynamic.baselines$model <- "dynamic"
+
+## merge baselines
+baselines <- bind_rows(static.baselines, dynamic.baselines)
+
+## merge with sensitivity analysis and calculate difference/z-scores between baseline and scenarios
+zscores <- merge(trait.var.combined, 
+           baselines, 
+           by = c("Pin", "Nin", "NP_inflow", "model")) %>%
+  mutate(deltaGPP = GPP - baseline_GPP,
+         deltaQN = QN1 - baseline_QN1, 
+         deltaQP =  QP1 - baseline_QP1) %>%
+  mutate(zscore_GPP = (deltaGPP - mean(deltaGPP))/sd(deltaGPP),
+         zscore_QN = (deltaQN- mean(deltaQN, na.rm = T))/sd(deltaQN, na.rm = T),
+         zscore_QP = (deltaQP - mean(deltaQP, na.rm = T))/sd(deltaQP, na.rm = T))
+
+# calculate new n:p supply based on molar ratios
+zscores$NP_inflow_molar <- (zscores$Nin/14.007)/(zscores$Pin/30.974)
+
+##############################################################################
 # Plotting
 
 # plt sensitivity of GPP to changes in traits
@@ -401,3 +448,62 @@ trait.var.combined$NP_molar <- (trait.var.combined$QN1/14.007)/(trait.var.combin
 cnp.sensitivity <- ggarrange(plotlist = list(cn.sensitivity, cp.sensitivity, np.sensitivity), 
                            align = "hv", nrow = 3, labels = c("a", "b", "c"))
 cnp.sensitivity
+
+################################################################################
+# plot the z-scores
+
+(z.score.gpp <- zscores %>%
+  ggplot() + 
+  #geom_path(aes(trait.value, zscore_GPP, group = interaction(NP_inflow, Pin)), alpha = 0.3, lwd = .75) + 
+  geom_hline(yintercept = 0) + 
+  geom_path(aes(trait.value, round(zscore_GPP, 2), col = NP_inflow_molar, group = interaction(Pin, NP_inflow_molar)), alpha = .1) + 
+  geom_point(aes(trait.value, round(zscore_GPP, 2), col = NP_inflow_molar, group = Pin), size = 2) + 
+  ggh4x::facet_grid2(model~trait,  scales = "free", independent = "all") + 
+  scale_color_viridis_c() +
+  #scale_x_log10() + scale_y_log10() + 
+  labs(x = NULL,
+       y =  "z-score\n(sim. GPP - base. GPP)",
+       col = "N:P inflow (molar)"))
+
+(z.score.qn <- zscores %>%
+    filter(model == "dynamic") %>%
+    ggplot() + 
+    #geom_path(aes(trait.value, zscore_GPP, group = interaction(NP_inflow, Pin)), alpha = 0.3, lwd = .75) + 
+    geom_hline(yintercept = 0) + 
+    geom_path(aes(trait.value, round(zscore_QN, 2), col = NP_inflow_molar, group = interaction(Pin, NP_inflow_molar)), alpha = .1) + 
+    geom_point(aes(trait.value, round(zscore_QN, 2), col = NP_inflow_molar, group = Pin), size = 2) + 
+    scale_color_viridis_c() +
+    ggh4x::facet_grid2(model~trait,  scales = "free", independent = "all") + 
+    #scale_x_log10() + scale_y_log10() + 
+    labs(x = NULL,
+         y =  "z-score\n(sim. QN - base. QN)",
+         col = "N:P inflow (molar)"))
+
+(z.score.qp <- zscores %>%
+    filter(model == "dynamic") %>%
+    ggplot() + 
+    #geom_path(aes(trait.value, zscore_GPP, group = interaction(NP_inflow, Pin)), alpha = 0.3, lwd = .75) + 
+    geom_hline(yintercept = 0) + 
+    geom_path(aes(trait.value, round(zscore_QP, 2), col = NP_inflow_molar, group = interaction(Pin, NP_inflow_molar)), alpha = .1) + 
+    geom_point(aes(trait.value, round(zscore_QP, 2), col = NP_inflow_molar, group = Pin), size = 2) + 
+    scale_color_viridis_c() +
+    ggh4x::facet_grid2(model~trait,  scales = "free", independent = "all") + 
+    #scale_x_log10() + scale_y_log10() + 
+    labs(x = "Trait value",
+         y =  "z-score\n(sim. QP - base. QP)",
+         col = "N:P inflow (molar)"))
+
+
+## Combine z-score figure
+z.score.fig <- ggarrange(
+  plotlist = list(z.score.gpp, z.score.qn, z.score.qp), 
+  labels = c("a", "b", "c"), heights = c(2/4, 1/4, 1/4), 
+  nrow = 3,
+  align = "hv", common.legend = T, legend = "bottom"
+)
+z.score.fig
+save_plot("figures/zscores_sentivity.png", z.score.fig, base_height = 8, base_width = 15)
+
+#################################################################################
+# Save everything to Rdata file
+#save(list = ls(),  file = "sensitivity_analysis.Rdata")
