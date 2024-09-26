@@ -227,7 +227,7 @@ species.legend = c("average", "diatoms","greens", "cyanos")
     scale_color_viridis_d() +
     scale_fill_viridis_d() +
     #guides(fill = "none", color = "none", pch = "none", alpha = "none") +
-    labs(x = "Load N:P (molar)", y = "Seston C:N (molar)", col = "species") + 
+    labs(x = "Load N:P (molar)", y = "Phytoplankton C:N (molar)", col = "species") + 
     theme(strip.background = element_blank(),  # Remove the panel border
           strip.text = element_blank()
     ))
@@ -250,7 +250,7 @@ species.legend = c("average", "diatoms","greens", "cyanos")
     scale_color_viridis_d() +
     scale_fill_viridis_d() +
     #guides(fill = "none", color = "none", pch = "none", alpha = "none") +
-    labs(x = "Load N:P (molar)", y = "Seston C:P (molar)", col = "species") + 
+    labs(x = "Load N:P (molar)", y = "Phytoplankton C:P (molar)", col = "species") + 
     theme(strip.background = element_blank(),  # Remove the panel border
           strip.text = element_blank()
     ))
@@ -273,7 +273,7 @@ species.legend = c("average", "diatoms","greens", "cyanos")
     scale_color_viridis_d() +
     scale_fill_viridis_d() +
     #guides(fill = "none", color = "none", pch = "none", alpha = "none") +
-    labs(x = "Load N:P (molar)", y = "Seston N:P (molar)", col = "species"))
+    labs(x = "Load N:P (molar)", y = "Phytoplankton N:P (molar)", col = "species"))
 
 cnp.plt <- ggarrange(plotlist = list(cn.plt, cp.plt, np.plt), 
                      ncol = 3, labels = c("a", "b", "c"), 
@@ -333,7 +333,7 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
     scale_fill_viridis_d() + 
     #guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
     scale_alpha(range=c(0.5,1), na.value = 0) + 
-    labs(x = "Seston C:N (molar)", y =  expression("GPP (mg C L"^-1 ~ " day"^-1~")"),
+    labs(x = "Phytoplankton C:N (molar)", y =  expression("GPP (mg C L"^-1 ~ " day"^-1~")"),
          col = "species", alpha = "Load N:P (molar)") + 
     theme(strip.background = element_blank(),  # Remove the panel border
           strip.text = element_blank()
@@ -354,7 +354,7 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
     scale_fill_viridis_d() + 
     #guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
     scale_alpha(range=c(0.5,1), na.value = 0) + 
-    labs(x = "Seston C:P (molar)", y =  expression("GPP (mg C L"^-1 ~ " day"^-1~")"),
+    labs(x = "Phytoplankton C:P (molar)", y =  expression("GPP (mg C L"^-1 ~ " day"^-1~")"),
          col = "species", alpha = "Load N:P (molar)") + 
     theme(strip.background = element_blank(),  # Remove the panel border
           strip.text = element_blank()
@@ -381,7 +381,7 @@ consump.vctr.seston <- consump.vctr.seston %>% mutate(minQN_minQP = ifelse(sesto
     scale_fill_viridis_d() + 
     #guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
     scale_alpha(range=c(0.5,1), na.value = 0) + 
-    labs(x = "Seston N:P (molar)", y =  expression("GPP (mg C L"^-1 ~ " day"^-1~")"),
+    labs(x = "Phytoplankton N:P (molar)", y =  expression("GPP (mg C L"^-1 ~ " day"^-1~")"),
          col = "species", alpha = "Load N:P (molar)"))
 
 

@@ -138,25 +138,54 @@ summary(lm(log(GPP + 0.1) ~ log(est_GPP + 0.1), data = base.predictions.corman[b
 
 ################################################################################
 
+# calculate error metrics and relate to inflows and lake-specific ,factors
+err.metrics <- base.predictions.corman %>%
+  group_by(Lake, species, model, Month) %>%
+  summarise("N:P" = (TN_in/14.007)/(TP_in/30.974), 
+            "TP umoles/L" = (TP_in/30.974), "TN umoles/L" = (TN_in),
+            "Lake area km2" = (SA), "DOC mg/L" = (DOC_mgL),
+            "Epi. HRT days" = (HRT)/365,
+            MAE = sum(abs(est_GPP - GPP))/n())
+
+err.metrics %>%
+  gather("Key", "Value", -model, -Lake, -species, -MAE) %>%
+  ggplot(aes(log(Value), log(MAE), pch = species)) + 
+  geom_point() + 
+  ggh4x::facet_grid2(model~Key, independent = "all", scales = "free")
+
+
+summary(lm(log(MAE) ~ log(`TP umoles/L`), data = err.metrics[err.metrics$model == "static",]))
+summary(lm(log(MAE) ~ log(`TP umoles/L`), data = err.metrics[err.metrics$model == "dynamic",]))
+
+summary(lm(log(MAE) ~ log(`TN umoles/L`), data = err.metrics[err.metrics$model == "static",]))
+summary(lm(log(MAE) ~ log(`TN umoles/L`), data = err.metrics[err.metrics$model == "dynamic",]))
+
+
+summary(lm(log(MAE) ~ log(`N:P`), data = err.metrics[err.metrics$model == "static",]))
+summary(lm(log(MAE) ~ log(`N:P`), data = err.metrics[err.metrics$model == "dynamic",]))
+
+
+################################################################################
+
 # plot predictions following Kelly et al 2018 F5 panels C and D
 
 (obs.plt <- corman2 %>%
-  ggplot(aes(TP_in/30.974, GPP, col = (TN_in/14.007)/(TP_in/30.974))) + 
+  ggplot(aes(log(TP_in/30.974), log(GPP + 0.1), col = (TN_in/14.007)/(TP_in/30.974))) + 
   geom_point(size = 2) + 
-  scale_x_log10() +  #scale_y_log10() + 
+  #scale_x_log10() +  #scale_y_log10() + 
   scale_color_viridis_c() + 
-  labs(x = expression("Load TP umoles L"^-1), 
-       y = expression("GPP (mg C L"^-1 ~ " day"^-1~")"),
+  labs(x = expression("log(load TP umoles L"^-1 ~ ")"), 
+       y = expression("log(GPP + 0.1) mg C L"^-1 ~ " day"^-1),
        col = "Load N:P (molar)"))
 
 (mod.plt <- base.predictions.corman %>%
-    ggplot(aes(TP_in/30.974, zscore_gpp,col = (TN_in/14.007)/(TP_in/30.974))) + 
+    ggplot(aes(log(TP_in/30.974), log(est_GPP + 0.1),col = (TN_in/14.007)/(TP_in/30.974))) + 
     geom_point(size = 2) + 
     ggh4x::facet_grid2(model~species, scales = "free", independent = "y") + 
-    scale_x_log10() +  #scale_y_log10() +
+    #() +  #scale_y_log10() +
     scale_color_viridis_c() + 
-    labs(x = expression("Load TP umoles L"^-1), 
-         y = expression("z-score GPP Uunitless)"),
+    labs(x = expression("log(load TP umoles L"^-1 ~ ")"), 
+         y = expression("log(modeled GPP + 0.1) mg C L"^-1 ~ " day"^-1),
          col = "Load N:P (molar)") + 
     guides(shape = "none"))
 
@@ -174,11 +203,12 @@ subplot.b
     #filter(Lake != "Feeagh" & Lake != "Acton" & Lake != "Langtjern" & Lake != "Trout") %>%
     ggplot() + 
     #geom_smooth(aes(GPP, est_GPP), method = "lm", alpha = 0.3) + 
-    geom_point(aes(GPP, zscore_gpp, pch = Lake), size = 2) + 
-    ggh4x::facet_grid2(model ~ species,  scales = "free", independent = "y") + 
+    geom_point(aes(log(est_GPP + 0.1), log(GPP + 0.1), pch = Lake), size = 2) + 
+    ggh4x::facet_grid2(model ~ species,  scales = "free", independent = "x") + 
+    #geom_abline(slope = 1, intercept = 0) + 
     #scale_x_log10() + scale_y_log10() + 
-    labs(x = expression("Measured GPP (mg C L"^-1 ~ " day"^-1~")"), 
-         y = ("z-score modelled GPP (unitless)"),
+    labs(y = expression("Obs. GPP (mg C L"^-1 ~ " day"^-1~")"), 
+         x = expression("log(mod. GPP + 0.1) mg C L"^-1 ~ " day"^-1),
          shape = NULL) + 
     scale_shape_manual(
       values = c(
