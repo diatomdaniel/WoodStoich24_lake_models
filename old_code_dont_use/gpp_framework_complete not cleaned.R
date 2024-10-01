@@ -122,7 +122,9 @@ consump.vctr <- tibble(
     ((0.09/14.007)/(1/12.001))/((0.0105/30.974)/(1/12.001)),
     ((0.155/14.007)/(1/12.001))/((0.02/30.974)/(1/12.001)),
     ((0.025/14.007)/(1/12.001))/((0.001/30.974)/(1/12.001)),
-    ((0.01/14.007)/(1/12.001))/((0.001/30.974)/(1/12.001))), 2))
+    ((0.01/14.007)/(1/12.001))/((0.001/30.974)/(1/12.001))), 2),
+  half_sat_P = rep(c(0.005, 0.028, 0.026, 0.0165)/30.974 * 1000, 2),
+  half_sat_N = rep(c(0.064, 0.036, 0.033, 0.05)/14.007 * 1000,2))
   
   # 
   # "minQN_minQP" = rep(c((0.09/14.007)/(0.0105/30.974), 
@@ -136,7 +138,9 @@ consump.vctr.seston <- seston %>%
   group_by(species, seston, Pin) %>%
   summarise(minQN_minQP = max(minQN_minQP), 
             CNP = max(value),
-            GPP = max(GPP))
+            GPP = max(GPP),
+            half_sat_P = min(half_sat_P),
+            half_sat_N = min(half_sat_N))
 
 # manual legend
 species.legend = c("average", "diatoms","greens", "cyanos")
@@ -402,3 +406,59 @@ seston.figs
 # save figures individually
 #save_plot("figures/gpp_framework.png", gpp.plt, base_width = 5, base_height = 8)
 #save_plot("figures/seston_framework.png", seston.figs, base_height = 10, base_width = 7)
+
+
+################################################################################
+
+### Plot dissolved nutrients
+
+# plot GPP across supply N:P for each species
+(p.plt <- ggplot() + 
+   # # add in the consumption vctrs ala Tilmann
+   # note that consumption vctrs won't match for the static model, only the dynamic as cell quotas change..
+   geom_segment(data = consump.vctr.seston,
+                aes(y = half_sat_P, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin),
+                lwd = 1, lty = "dashed") +
+   geom_segment(data = consump.vctr.seston,
+                aes(y = half_sat_P, x = minQN_minQP, xend = 0, yend = half_sat_P, col = species, group = Pin),
+                lwd = 0.75, lty = "dashed") +
+   geom_line(data = gpp.sims, aes(x = NPin_molar, y = P,
+                                  col = species, group = interaction(species, Pin)),
+             lwd = 0.75) +
+   geom_point(data = gpp.sims, aes(x = NPin_molar, y = P,
+                                   fill = species, pch = species, group = Pin),
+              size = 2) + 
+   scale_x_log10() + scale_y_log10() + 
+   #ggh4x::facet_grid2(.~model) + 
+   ggh4x::facet_grid2(Pin~model) + 
+   scale_shape_manual(values = c(21, 22, 24, 25)) + 
+   scale_color_viridis_d() + 
+   scale_fill_viridis_d() + 
+   #guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
+   labs(x = "Load N:P (molar)", 
+        y = expression("Residual P ug L"^-1)))
+
+(n.plt <- ggplot() + 
+    # # add in the consumption vctrs ala Tilmann
+    # note that consumption vctrs won't match for the static model, only the dynamic as cell quotas change..
+    geom_segment(data = consump.vctr.seston,
+                 aes(y = half_sat_N, x = minQN_minQP, xend = minQN_minQP, yend = 0, col = species, group = Pin),
+                 lwd = 1, lty = "dashed") +
+    geom_segment(data = consump.vctr.seston,
+                 aes(y = half_sat_N, x = minQN_minQP, xend = 0, yend = half_sat_N, col = species, group = Pin),
+                 lwd = 0.75, lty = "dashed") +
+    geom_line(data = gpp.sims, aes(x = NPin_molar, y = N,
+                                   col = species, group = interaction(species, Pin)),
+              lwd = 0.75) +
+    geom_point(data = gpp.sims, aes(x = NPin_molar, y = N,
+                                    fill = species, pch = species, group = Pin),
+               size = 2) + 
+    scale_x_log10() + scale_y_log10() + 
+    #ggh4x::facet_grid2(.~model) + 
+    ggh4x::facet_grid2(Pin~model) + 
+    scale_shape_manual(values = c(21, 22, 24, 25)) + 
+    scale_color_viridis_d() + 
+    scale_fill_viridis_d() + 
+    #guides(fill = "none", color = "none", pch = "none", alpha = "none") + 
+    labs(x = "Load N:P (molar)", 
+         y = expression("Residual N ug L"^-1)))

@@ -1,16 +1,18 @@
-# Code to load and clean Corman et al data set used to force model for grid search
+
+# Code to load and clean Corman et al data set used to force model for GPP comparison
 # DG, August 2024
 
-
+# download Corman et al data set from here: https://portal.edirepository.org/nis/mapbrowse?packageid=edi.1268.3
+# need stream nutrient table and lake GPP table
 # packages 
 library(tidyverse)
 
 # load data sets
 # GPP
-corman.gpp <- read_csv("data4input/Corman2023 metabolism result.csv")
+corman.gpp <- read_csv("load_metab_results.csv")
 # stream nutrients 
-corman.stream.nutrients  <- read_csv("data4input/Corman2023 stream nutrients.csv")
-# volume and DOC created from S1 T1 and T1 in paper
+corman.stream.nutrients  <- read_csv("raw_stream_nutrients.csv")
+# volume and DOC created from S1 T1 and T1 in Corman et al 2023 https://aslopubs.onlinelibrary.wiley.com/doi/full/10.1002/lno.12449
 # no DOC for Lillinonah! used median DOC of the data set = 11.8
 corman.vol <- tibble(
   Lake = c("Acton", "Crampton", "EastLong", "Feeagh", "Harp", "Langtjern", "Lillinonah", "Lillsjoliden",

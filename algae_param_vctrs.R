@@ -2,8 +2,18 @@
 
 ### Code to store algae parameter vectors
 
-# load traits used to fill lists
-traits <- readr::read_csv("data4input/phyto_traits4models_21June2024.csv")[,-1]
+# traits are from Olson et al 2024 in prep.
+# trait values aggregated from Edwards et al 2015 https://figshare.com/articles/dataset/Data_Paper_Data_Paper/3562857?file=5635515
+
+# create table with trait values
+traits <- tibble::tibble(
+  Trait = c("K_N_mgL", "K_P_mgL", "Qmax_mg_N_mg_C", "Qmax_mg_P_mg_C", "Qmin_mg_N_mg_C", 
+            "Qmin_mg_P_mg_C", "Vmax_mg_N_mg_C", "Vmax_mg_P_mg_C", "umax_N", "umax_P", "K_light", "umax"),
+  diatoms = c(0.064, 0.005, 0.201, 0.146, 0.155, 0.02, 4.49, 0.608, 0.86, 0.61, 167.8, 0.455),
+  greens = c(0.036, 0.028, 0.068, 0.015, 0.025, 0.001, 0.416, 0.243, 1.32, 0.63, 165.25, 0.875),
+  cyanos = c(0.033, 0.026, 0.023, 0.008, 0.01, 0.001, 0.034, 0.113, 0.86, 0.655, 88.6, 0.64),
+  average = c(0.05, 0.0165, 0.1345, 0.0805, 0.09, 0.0105, 2.453, 0.4255, 1.09, 0.62, 166.525, 0.665)
+)
 
 # average algae static model
 

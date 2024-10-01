@@ -1,15 +1,18 @@
 #Code to compare lake and stream TN and TP concentrations from Corman et al 2023 data set
 # DG, August 2024
 
+# download Corman et al data set from here: https://portal.edirepository.org/nis/mapbrowse?packageid=edi.1268.3
+# need stream and lake nutrient concentrations
+# packages 
 
 # packages 
 library(tidyverse)
 library(lubridate)
 
 # load data sets
-corman.lake.nutrients <- read_csv("data4input/Corman2023 lake nutrients.csv")
+corman.lake.nutrients <- read_csv("AllLakes_rawinlakenuts.csv")
 # stream nutrients 
-corman.stream.nutrients  <- read_csv("data4input/Corman2023 stream nutrients.csv")
+corman.stream.nutrients  <- read_csv("raw_stream_nutrients.csv")
 
 ### Monthly medians
 
